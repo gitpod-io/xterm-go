@@ -215,6 +215,7 @@ func NewInputHandler(
 	p.RegisterCsiHandler(FunctionIdentifier{Final: 'b'}, h.repeatPrecedingCharacter)
 	p.RegisterCsiHandler(FunctionIdentifier{Final: 'c'}, h.sendDeviceAttributesPrimary)
 	p.RegisterCsiHandler(FunctionIdentifier{Prefix: '>', Final: 'c'}, h.sendDeviceAttributesSecondary)
+	p.RegisterCsiHandler(FunctionIdentifier{Prefix: '>', Final: 'q'}, h.sendXtVersion)
 	p.RegisterCsiHandler(FunctionIdentifier{Final: 'g'}, h.tabClear)
 	p.RegisterCsiHandler(FunctionIdentifier{Final: 'm'}, h.charAttributes)
 	p.RegisterCsiHandler(FunctionIdentifier{Final: 'n'}, h.deviceStatus)

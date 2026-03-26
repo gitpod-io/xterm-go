@@ -458,6 +458,15 @@ func (h *InputHandler) sendDeviceAttributesSecondary(params *Params) bool {
 	return true
 }
 
+// sendXtVersion responds to XTVERSION (CSI > q) with a DCS response.
+func (h *InputHandler) sendXtVersion(params *Params) bool {
+	if params.Params[0] > 0 {
+		return true
+	}
+	h.coreService.TriggerDataEvent("\x1bP>|xterm-go(0.1.0)\x1b\\", false, false)
+	return true
+}
+
 func (h *InputHandler) deviceStatus(params *Params) bool {
 	buf := h.activeBuffer()
 	switch params.Params[0] {

@@ -588,6 +588,43 @@ func TestDeviceAttributes(t *testing.T) {
 	}
 }
 
+func TestXtVersion(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		Response string
+	}
+
+	t.Run("default param responds with DCS version", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		var response string
+		h.coreService.OnDataEmitter.Event(func(data string) {
+			response = data
+		})
+		h.ParseString("\x1b[>q")
+		got := Expectation{Response: response}
+		expected := Expectation{Response: "\x1bP>|xterm-go(0.1.0)\x1b\\"}
+		if diff := cmp.Diff(expected, got); diff != "" {
+			t.Errorf("mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("non-zero param produces no response", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		var response string
+		h.coreService.OnDataEmitter.Event(func(data string) {
+			response = data
+		})
+		h.ParseString("\x1b[>1q")
+		got := Expectation{Response: response}
+		expected := Expectation{Response: ""}
+		if diff := cmp.Diff(expected, got); diff != "" {
+			t.Errorf("mismatch (-want +got):\n%s", diff)
+		}
+	})
+}
+
 func TestEraseChars(t *testing.T) {
 	t.Parallel()
 	type Expectation struct {
