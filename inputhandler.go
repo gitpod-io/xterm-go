@@ -225,6 +225,10 @@ func NewInputHandler(
 	p.RegisterCsiHandler(FunctionIdentifier{Final: 'r'}, h.setScrollRegion)
 	p.RegisterCsiHandler(FunctionIdentifier{Final: 's'}, h.csiSaveCursor)
 	p.RegisterCsiHandler(FunctionIdentifier{Final: 'u'}, h.csiRestoreCursor)
+	p.RegisterCsiHandler(FunctionIdentifier{Prefix: '=', Final: 'u'}, h.kittyKeyboardSet)
+	p.RegisterCsiHandler(FunctionIdentifier{Prefix: '?', Final: 'u'}, h.kittyKeyboardQuery)
+	p.RegisterCsiHandler(FunctionIdentifier{Prefix: '>', Final: 'u'}, h.kittyKeyboardPush)
+	p.RegisterCsiHandler(FunctionIdentifier{Prefix: '<', Final: 'u'}, h.kittyKeyboardPop)
 	p.RegisterCsiHandler(FunctionIdentifier{Intermediates: "\"", Final: 'q'}, h.selectProtected)
 
 	// CSI handlers — mode set/reset

@@ -725,3 +725,73 @@ func (h *InputHandler) resetModePrivate(params *Params) bool {
 	}
 	return true
 }
+
+// kittyKeyboardMaxStackSize is the maximum depth of the kitty keyboard flag stack.
+const kittyKeyboardMaxStackSize = 10
+
+// kittyKeyboardSet handles CSI = Ps ; Pm u — set kitty keyboard flags.
+// Ps = flags value (default 0), Pm = mode: 1=set (OR), 2=clear (AND NOT), 3=assign (default 1).
+func (h *InputHandler) kittyKeyboardSet(params *Params) bool {
+	kk := &h.coreService.KittyKeyboard
+	flags := 0
+	if params.Params[0] > 0 {
+		flags = int(params.Params[0])
+	}
+	mode := 1
+	if params.Length >= 2 && params.Params[1] > 0 {
+		mode = int(params.Params[1])
+	}
+	switch mode {
+	case 1:
+		kk.Flags |= flags
+	case 2:
+		kk.Flags &^= flags
+	case 3:
+		kk.Flags = flags
+	}
+	return true
+}
+
+// kittyKeyboardQuery handles CSI ? u — query current kitty keyboard flags.
+// Responds with CSI ? <flags> u.
+func (h *InputHandler) kittyKeyboardQuery(params *Params) bool {
+	buf := h.activeBuffer()
+	shouldScroll := buf.YBase != buf.YDisp
+	h.coreService.TriggerDataEvent(fmt.Sprintf("\x1b[?%du", h.coreService.KittyKeyboard.Flags), false, shouldScroll)
+	return true
+}
+
+// kittyKeyboardPush handles CSI > Ps u — push flags onto stack.
+// Pushes current flags, then sets flags = Ps (default 0).
+func (h *InputHandler) kittyKeyboardPush(params *Params) bool {
+	kk := &h.coreService.KittyKeyboard
+	if len(kk.MainStack) < kittyKeyboardMaxStackSize {
+		kk.MainStack = append(kk.MainStack, kk.Flags)
+	}
+	flags := 0
+	if params.Params[0] > 0 {
+		flags = int(params.Params[0])
+	}
+	kk.Flags = flags
+	return true
+}
+
+// kittyKeyboardPop handles CSI < Ps u — pop flags from stack.
+// Ps = number of entries to pop (default 1). Restores flags from the last popped entry.
+// If stack is empty, sets flags = 0.
+func (h *InputHandler) kittyKeyboardPop(params *Params) bool {
+	kk := &h.coreService.KittyKeyboard
+	n := 1
+	if params.Params[0] > 0 {
+		n = int(params.Params[0])
+	}
+	for i := 0; i < n; i++ {
+		if len(kk.MainStack) == 0 {
+			kk.Flags = 0
+			break
+		}
+		kk.Flags = kk.MainStack[len(kk.MainStack)-1]
+		kk.MainStack = kk.MainStack[:len(kk.MainStack)-1]
+	}
+	return true
+}

@@ -930,3 +930,194 @@ func TestKittyKeyboardStackSwapOnAltBuffer(t *testing.T) {
 		t.Errorf("expected AltStack [10 20], got %v", kk.AltStack)
 	}
 }
+
+func TestKittyKeyboardSet(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		Name     string
+		Input    string
+		Expected int
+	}{
+		{"default_mode_OR", "\x1b[=3u", 3},
+		{"explicit_mode_1_OR", "\x1b[=5;1u", 5},
+		{"mode_1_OR_accumulates", "\x1b[=1u\x1b[=2u", 3},
+		{"mode_2_clear", "\x1b[=7u\x1b[=2;2u", 5},
+		{"mode_3_assign", "\x1b[=7u\x1b[=3;3u", 3},
+		{"default_flags_zero", "\x1b[=u", 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			h := newTestInputHandler(80, 24)
+			h.ParseString(tc.Input)
+			got := h.coreService.KittyKeyboard.Flags
+			if got != tc.Expected {
+				t.Errorf("expected flags %d, got %d", tc.Expected, got)
+			}
+		})
+	}
+}
+
+func TestKittyKeyboardQuery(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		Name     string
+		Setup    string
+		Expected string
+	}{
+		{"default_zero", "", "\x1b[?0u"},
+		{"after_set", "\x1b[=5u", "\x1b[?5u"},
+		{"after_assign_27", "\x1b[=27;3u", "\x1b[?27u"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			h := newTestInputHandler(80, 24)
+			var response string
+			h.coreService.OnDataEmitter.Event(func(data string) {
+				response = data
+			})
+			if tc.Setup != "" {
+				h.ParseString(tc.Setup)
+			}
+			h.ParseString("\x1b[?u")
+			if response != tc.Expected {
+				t.Errorf("expected response %q, got %q", tc.Expected, response)
+			}
+		})
+	}
+}
+
+func TestKittyKeyboardPush(t *testing.T) {
+	t.Parallel()
+
+	t.Run("push_saves_and_sets", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		// Set flags to 5, then push with new flags 3
+		h.ParseString("\x1b[=5;3u")
+		h.ParseString("\x1b[>3u")
+		kk := h.coreService.KittyKeyboard
+		if kk.Flags != 3 {
+			t.Errorf("expected flags 3, got %d", kk.Flags)
+		}
+		if len(kk.MainStack) != 1 || kk.MainStack[0] != 5 {
+			t.Errorf("expected MainStack [5], got %v", kk.MainStack)
+		}
+	})
+
+	t.Run("push_default_zero", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		h.ParseString("\x1b[=7;3u")
+		h.ParseString("\x1b[>u")
+		kk := h.coreService.KittyKeyboard
+		if kk.Flags != 0 {
+			t.Errorf("expected flags 0, got %d", kk.Flags)
+		}
+		if len(kk.MainStack) != 1 || kk.MainStack[0] != 7 {
+			t.Errorf("expected MainStack [7], got %v", kk.MainStack)
+		}
+	})
+
+	t.Run("push_multiple", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		h.ParseString("\x1b[=1;3u")
+		h.ParseString("\x1b[>2u")
+		h.ParseString("\x1b[>3u")
+		kk := h.coreService.KittyKeyboard
+		if kk.Flags != 3 {
+			t.Errorf("expected flags 3, got %d", kk.Flags)
+		}
+		if len(kk.MainStack) != 2 || kk.MainStack[0] != 1 || kk.MainStack[1] != 2 {
+			t.Errorf("expected MainStack [1 2], got %v", kk.MainStack)
+		}
+	})
+
+	t.Run("push_max_stack_depth", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		// Push 10 entries (max)
+		for i := 0; i < 10; i++ {
+			h.ParseString("\x1b[>1u")
+		}
+		kk := h.coreService.KittyKeyboard
+		if len(kk.MainStack) != 10 {
+			t.Errorf("expected MainStack len 10, got %d", len(kk.MainStack))
+		}
+		// 11th push should not grow the stack
+		h.ParseString("\x1b[>99u")
+		kk = h.coreService.KittyKeyboard
+		if len(kk.MainStack) != 10 {
+			t.Errorf("expected MainStack len 10 after overflow, got %d", len(kk.MainStack))
+		}
+		// But flags should still be updated
+		if kk.Flags != 99 {
+			t.Errorf("expected flags 99 after overflow push, got %d", kk.Flags)
+		}
+	})
+}
+
+func TestKittyKeyboardPop(t *testing.T) {
+	t.Parallel()
+
+	t.Run("pop_restores_flags", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		h.ParseString("\x1b[=5;3u")
+		h.ParseString("\x1b[>3u")
+		h.ParseString("\x1b[<u")
+		kk := h.coreService.KittyKeyboard
+		if kk.Flags != 5 {
+			t.Errorf("expected flags 5, got %d", kk.Flags)
+		}
+		if len(kk.MainStack) != 0 {
+			t.Errorf("expected empty MainStack, got %v", kk.MainStack)
+		}
+	})
+
+	t.Run("pop_empty_stack_sets_zero", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		h.ParseString("\x1b[=5;3u")
+		h.ParseString("\x1b[<u")
+		kk := h.coreService.KittyKeyboard
+		if kk.Flags != 0 {
+			t.Errorf("expected flags 0, got %d", kk.Flags)
+		}
+	})
+
+	t.Run("pop_multiple", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		h.ParseString("\x1b[=1;3u")
+		h.ParseString("\x1b[>2u")
+		h.ParseString("\x1b[>3u")
+		// Pop 2 entries
+		h.ParseString("\x1b[<2u")
+		kk := h.coreService.KittyKeyboard
+		if kk.Flags != 1 {
+			t.Errorf("expected flags 1, got %d", kk.Flags)
+		}
+		if len(kk.MainStack) != 0 {
+			t.Errorf("expected empty MainStack, got %v", kk.MainStack)
+		}
+	})
+
+	t.Run("pop_more_than_stack_size", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		h.ParseString("\x1b[=1;3u")
+		h.ParseString("\x1b[>2u")
+		// Pop 5 but only 1 on stack
+		h.ParseString("\x1b[<5u")
+		kk := h.coreService.KittyKeyboard
+		if kk.Flags != 0 {
+			t.Errorf("expected flags 0, got %d", kk.Flags)
+		}
+		if len(kk.MainStack) != 0 {
+			t.Errorf("expected empty MainStack, got %v", kk.MainStack)
+		}
+	})
+}
