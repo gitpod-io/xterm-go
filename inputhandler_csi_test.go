@@ -703,3 +703,63 @@ func TestSelectProtected(t *testing.T) {
 		})
 	}
 }
+
+func TestSetResetModeColorSchemeAndWin32(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		ColorSchemeUpdates bool
+		Win32InputMode     bool
+	}
+	tests := []struct {
+		Name     string
+		Input    string
+		Expected Expectation
+	}{
+		{
+			Name:     "DECSET_color_scheme_updates",
+			Input:    "\x1b[?2031h",
+			Expected: Expectation{ColorSchemeUpdates: true},
+		},
+		{
+			Name:     "DECRST_color_scheme_updates",
+			Input:    "\x1b[?2031h\x1b[?2031l",
+			Expected: Expectation{ColorSchemeUpdates: false},
+		},
+		{
+			Name:     "DECSET_win32_input_mode",
+			Input:    "\x1b[?9001h",
+			Expected: Expectation{Win32InputMode: true},
+		},
+		{
+			Name:     "DECRST_win32_input_mode",
+			Input:    "\x1b[?9001h\x1b[?9001l",
+			Expected: Expectation{Win32InputMode: false},
+		},
+		{
+			Name:     "DECSET_both_modes",
+			Input:    "\x1b[?2031h\x1b[?9001h",
+			Expected: Expectation{ColorSchemeUpdates: true, Win32InputMode: true},
+		},
+		{
+			Name:     "DECRST_both_modes",
+			Input:    "\x1b[?2031h\x1b[?9001h\x1b[?2031l\x1b[?9001l",
+			Expected: Expectation{ColorSchemeUpdates: false, Win32InputMode: false},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			h := newTestInputHandler(80, 24)
+			h.ParseString(tc.Input)
+			got := Expectation{
+				ColorSchemeUpdates: h.coreService.DecPrivateModes.ColorSchemeUpdates,
+				Win32InputMode:     h.coreService.DecPrivateModes.Win32InputMode,
+			}
+			if diff := cmp.Diff(tc.Expected, got); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+

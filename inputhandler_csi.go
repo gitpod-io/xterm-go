@@ -641,6 +641,10 @@ func (h *InputHandler) setModePrivate(params *Params) bool {
 			h.coreService.DecPrivateModes.BracketedPasteMode = true
 		case 2026:
 			h.coreService.DecPrivateModes.SynchronizedOutput = true
+		case 2031:
+			h.coreService.DecPrivateModes.ColorSchemeUpdates = true
+		case 9001:
+			h.coreService.DecPrivateModes.Win32InputMode = true
 		}
 	}
 	return true
@@ -689,6 +693,10 @@ func (h *InputHandler) resetModePrivate(params *Params) bool {
 		case 2026:
 			h.coreService.DecPrivateModes.SynchronizedOutput = false
 			h.OnRequestRefreshRowsEmitter.Fire(RowRange{})
+		case 2031:
+			h.coreService.DecPrivateModes.ColorSchemeUpdates = false
+		case 9001:
+			h.coreService.DecPrivateModes.Win32InputMode = false
 		}
 	}
 	return true
