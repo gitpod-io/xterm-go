@@ -517,6 +517,80 @@ func TestTerminalScrollRegion(t *testing.T) {
 	}
 }
 
+func TestTerminalOnRender(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	var renders []RowRange
+	term.OnRender(func(r RowRange) { renders = append(renders, r) })
+	term.WriteString("Hello")
+	if len(renders) == 0 {
+		t.Fatal("expected OnRender to fire, got no events")
+	}
+	// The render event should cover row 0 (where "Hello" was written).
+	found := false
+	for _, r := range renders {
+		if r.Start <= 0 && r.End >= 0 {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected render event covering row 0, got %v", renders)
+	}
+}
+
+func TestTerminalOnRenderDispose(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	count := 0
+	d := term.OnRender(func(RowRange) { count++ })
+	term.WriteString("A")
+	if count == 0 {
+		t.Fatal("expected OnRender to fire")
+	}
+	first := count
+	d.Dispose()
+	term.WriteString("B")
+	if count != first {
+		t.Errorf("OnRender fired after Dispose: count went from %d to %d", first, count)
+	}
+}
+
+func TestTerminalRegisterApcHandler(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	var received string
+	// Register handler for APC identifier 'G' (0x47) — used by Kitty graphics protocol.
+	term.RegisterApcHandler(0x47, func(data string) bool {
+		received = data
+		return true
+	})
+	// Send APC G <payload> ST: ESC _ G <payload> ESC backslash
+	term.WriteString("\x1b_Ghello-apc\x1b\\")
+	if received != "hello-apc" {
+		t.Errorf("APC handler received %q, want %q", received, "hello-apc")
+	}
+}
+
+func TestTerminalRegisterApcHandlerDispose(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	callCount := 0
+	d := term.RegisterApcHandler(0x47, func(data string) bool {
+		callCount++
+		return true
+	})
+	term.WriteString("\x1b_Gfirst\x1b\\")
+	if callCount != 1 {
+		t.Fatalf("expected 1 call, got %d", callCount)
+	}
+	d.Dispose()
+	term.WriteString("\x1b_Gsecond\x1b\\")
+	if callCount != 1 {
+		t.Errorf("APC handler called after Dispose: count = %d, want 1", callCount)
+	}
+}
+
 func TestTerminalTabStops(t *testing.T) {
 	t.Parallel()
 	term := newTestTerminal(80, 24)

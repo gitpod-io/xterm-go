@@ -190,6 +190,17 @@ func (t *Terminal) OnLineFeed(fn func()) Disposable {
 	return t.OnLineFeedEmitter.Event(func(struct{}) { fn() })
 }
 
+// OnRender registers a callback fired when terminal rows are dirty.
+func (t *Terminal) OnRender(fn func(RowRange)) Disposable {
+	return t.OnRenderEmitter.Event(fn)
+}
+
+// RegisterApcHandler registers a handler for APC escape sequences.
+// ident is the character code of the first byte after ESC _ (e.g., 0x47 for 'G').
+func (t *Terminal) RegisterApcHandler(ident int, handler func(data string) bool) Disposable {
+	return t.inputHandler.parser.RegisterApcHandler(ident, NewApcStringHandler(handler))
+}
+
 // NormalBuffer returns the normal (primary) buffer.
 func (t *Terminal) NormalBuffer() *Buffer { return t.bufferService.Buffers.Normal() }
 
