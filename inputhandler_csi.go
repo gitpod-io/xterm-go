@@ -642,6 +642,11 @@ func (h *InputHandler) setModePrivate(params *Params) bool {
 			h.SaveCursor()
 			fallthrough
 		case 47, 1047:
+			// Swap kitty keyboard flags: save main, restore alt
+			kk := &h.coreService.KittyKeyboard
+			kk.MainFlags = kk.Flags
+			kk.Flags = kk.AltFlags
+			kk.MainStack, kk.AltStack = kk.AltStack, kk.MainStack
 			h.bufferService.Buffers.ActivateAltBuffer(h.eraseAttrData())
 			h.coreService.IsCursorInitialized = true
 			h.OnRequestRefreshRowsEmitter.Fire(RowRange{})
@@ -687,12 +692,22 @@ func (h *InputHandler) resetModePrivate(params *Params) bool {
 		case 1048:
 			h.RestoreCursor()
 		case 1049:
+			// Swap kitty keyboard flags: save alt, restore main
+			kk := &h.coreService.KittyKeyboard
+			kk.AltFlags = kk.Flags
+			kk.Flags = kk.MainFlags
+			kk.MainStack, kk.AltStack = kk.AltStack, kk.MainStack
 			h.bufferService.Buffers.ActivateNormalBuffer()
 			h.RestoreCursor()
 			h.coreService.IsCursorInitialized = true
 			h.OnRequestRefreshRowsEmitter.Fire(RowRange{})
 			h.OnRequestSyncScrollBarEmitter.Fire(struct{}{})
 		case 47, 1047:
+			// Swap kitty keyboard flags: save alt, restore main
+			kk := &h.coreService.KittyKeyboard
+			kk.AltFlags = kk.Flags
+			kk.Flags = kk.MainFlags
+			kk.MainStack, kk.AltStack = kk.AltStack, kk.MainStack
 			h.bufferService.Buffers.ActivateNormalBuffer()
 			h.coreService.IsCursorInitialized = true
 			h.OnRequestRefreshRowsEmitter.Fire(RowRange{})

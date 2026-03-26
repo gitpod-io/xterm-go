@@ -799,4 +799,134 @@ func TestSetResetModeColorSchemeAndWin32(t *testing.T) {
 	}
 }
 
+func TestKittyKeyboardFlagSwapOnAltBuffer(t *testing.T) {
+	t.Parallel()
 
+	type KKState struct {
+		Flags     int
+		MainFlags int
+		AltFlags  int
+	}
+
+	tests := []struct {
+		Name     string
+		Setup    func(h *InputHandler)
+		Input    string
+		Expected KKState
+	}{
+		{
+			Name: "DECSET_1049_saves_main_flags_restores_alt",
+			Setup: func(h *InputHandler) {
+				h.coreService.KittyKeyboard.Flags = 5
+				h.coreService.KittyKeyboard.AltFlags = 2
+			},
+			Input:    "\x1b[?1049h",
+			Expected: KKState{Flags: 2, MainFlags: 5, AltFlags: 2},
+		},
+		{
+			Name: "DECSET_47_saves_main_flags_restores_alt",
+			Setup: func(h *InputHandler) {
+				h.coreService.KittyKeyboard.Flags = 3
+				h.coreService.KittyKeyboard.AltFlags = 1
+			},
+			Input:    "\x1b[?47h",
+			Expected: KKState{Flags: 1, MainFlags: 3, AltFlags: 1},
+		},
+		{
+			Name: "DECSET_1047_saves_main_flags_restores_alt",
+			Setup: func(h *InputHandler) {
+				h.coreService.KittyKeyboard.Flags = 7
+				h.coreService.KittyKeyboard.AltFlags = 0
+			},
+			Input:    "\x1b[?1047h",
+			Expected: KKState{Flags: 0, MainFlags: 7, AltFlags: 0},
+		},
+		{
+			Name: "DECRST_1049_saves_alt_flags_restores_main",
+			Setup: func(h *InputHandler) {
+				// First switch to alt buffer
+				h.coreService.KittyKeyboard.Flags = 5
+				h.ParseString("\x1b[?1049h")
+				// Now set flags as if app changed them on alt screen
+				h.coreService.KittyKeyboard.Flags = 9
+			},
+			Input:    "\x1b[?1049l",
+			Expected: KKState{Flags: 5, MainFlags: 5, AltFlags: 9},
+		},
+		{
+			Name: "DECRST_47_saves_alt_flags_restores_main",
+			Setup: func(h *InputHandler) {
+				h.coreService.KittyKeyboard.Flags = 4
+				h.ParseString("\x1b[?47h")
+				h.coreService.KittyKeyboard.Flags = 6
+			},
+			Input:    "\x1b[?47l",
+			Expected: KKState{Flags: 4, MainFlags: 4, AltFlags: 6},
+		},
+		{
+			Name: "DECRST_1047_saves_alt_flags_restores_main",
+			Setup: func(h *InputHandler) {
+				h.coreService.KittyKeyboard.Flags = 8
+				h.ParseString("\x1b[?1047h")
+				h.coreService.KittyKeyboard.Flags = 3
+			},
+			Input:    "\x1b[?1047l",
+			Expected: KKState{Flags: 8, MainFlags: 8, AltFlags: 3},
+		},
+		{
+			Name: "round_trip_preserves_flags",
+			Setup: func(h *InputHandler) {
+				h.coreService.KittyKeyboard.Flags = 10
+				h.coreService.KittyKeyboard.AltFlags = 20
+			},
+			Input:    "\x1b[?1049h\x1b[?1049l",
+			Expected: KKState{Flags: 10, MainFlags: 10, AltFlags: 20},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			h := newTestInputHandler(80, 24)
+			if tc.Setup != nil {
+				tc.Setup(h)
+			}
+			h.ParseString(tc.Input)
+			kk := h.coreService.KittyKeyboard
+			got := KKState{Flags: kk.Flags, MainFlags: kk.MainFlags, AltFlags: kk.AltFlags}
+			if diff := cmp.Diff(tc.Expected, got); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestKittyKeyboardStackSwapOnAltBuffer(t *testing.T) {
+	t.Parallel()
+	h := newTestInputHandler(80, 24)
+
+	// Set up main stack
+	h.coreService.KittyKeyboard.Flags = 1
+	h.coreService.KittyKeyboard.MainStack = nil
+	h.coreService.KittyKeyboard.AltStack = []int{10, 20}
+
+	// Switch to alt buffer — main stack saved, alt stack restored
+	h.ParseString("\x1b[?1049h")
+	kk := h.coreService.KittyKeyboard
+	if len(kk.AltStack) != 0 {
+		t.Errorf("expected AltStack to be swapped out (len 0), got len %d", len(kk.AltStack))
+	}
+	if len(kk.MainStack) != 2 || kk.MainStack[0] != 10 || kk.MainStack[1] != 20 {
+		t.Errorf("expected MainStack [10 20], got %v", kk.MainStack)
+	}
+
+	// Switch back to normal buffer — stacks swap back
+	h.ParseString("\x1b[?1049l")
+	kk = h.coreService.KittyKeyboard
+	if len(kk.MainStack) != 0 {
+		t.Errorf("expected MainStack to be swapped back (len 0), got len %d", len(kk.MainStack))
+	}
+	if len(kk.AltStack) != 2 || kk.AltStack[0] != 10 || kk.AltStack[1] != 20 {
+		t.Errorf("expected AltStack [10 20], got %v", kk.AltStack)
+	}
+}
