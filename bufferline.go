@@ -218,9 +218,6 @@ func (bl *BufferLine) AddCodepointToCell(index int, codePoint uint32, width int)
 
 // --- Bulk operations ---
 
-// workCell is a reusable CellData to avoid allocations in bulk operations.
-var workCell = NewCellData()
-
 // InsertCells inserts n cells at pos, shifting existing cells right.
 // Cells that fall off the end are lost. New cells are filled with fillCell.
 func (bl *BufferLine) InsertCells(pos, n int, fillCell *CellData) {
@@ -230,8 +227,9 @@ func (bl *BufferLine) InsertCells(pos, n int, fillCell *CellData) {
 		bl.SetCellFromCodepoint(pos-1, 0, 1, &fillCell.AttributeData)
 	}
 	if n < bl.Len-pos {
+		var tmp CellData
 		for i := bl.Len - pos - n - 1; i >= 0; i-- {
-			bl.SetCell(pos+n+i, bl.LoadCell(pos+i, workCell))
+			bl.SetCell(pos+n+i, bl.LoadCell(pos+i, &tmp))
 		}
 		for i := range n {
 			bl.SetCell(pos+i, fillCell)
@@ -252,8 +250,9 @@ func (bl *BufferLine) InsertCells(pos, n int, fillCell *CellData) {
 func (bl *BufferLine) DeleteCells(pos, n int, fillCell *CellData) {
 	pos %= bl.Len
 	if n < bl.Len-pos {
+		var tmp CellData
 		for i := range bl.Len - pos - n {
-			bl.SetCell(pos+i, bl.LoadCell(pos+n+i, workCell))
+			bl.SetCell(pos+i, bl.LoadCell(pos+n+i, &tmp))
 		}
 		for i := bl.Len - n; i < bl.Len; i++ {
 			bl.SetCell(i, fillCell)
