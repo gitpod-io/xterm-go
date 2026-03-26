@@ -205,6 +205,7 @@ func NewInputHandler(
 	// CSI handlers — scroll
 	p.RegisterCsiHandler(FunctionIdentifier{Final: 'S'}, h.scrollUp)
 	p.RegisterCsiHandler(FunctionIdentifier{Final: 'T'}, h.scrollDown)
+	p.RegisterCsiHandler(FunctionIdentifier{Final: '^'}, h.scrollDown)
 	p.RegisterCsiHandler(FunctionIdentifier{Intermediates: " ", Final: '@'}, h.scrollLeft)
 	p.RegisterCsiHandler(FunctionIdentifier{Intermediates: " ", Final: 'A'}, h.scrollRight)
 	p.RegisterCsiHandler(FunctionIdentifier{Intermediates: "'", Final: '}'}, h.insertColumns)

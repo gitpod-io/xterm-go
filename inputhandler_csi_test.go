@@ -341,6 +341,16 @@ func TestScrollUpDown(t *testing.T) {
 			Input:    "AAA\x1b[2;1HBBB\x1b[1T",
 			Expected: Expectation{Row0: "", Row1: "AAA"},
 		},
+		{
+			Name:     "SD_scroll_down_caret_alias",
+			Input:    "AAA\x1b[2;1HBBB\x1b[1^",
+			Expected: Expectation{Row0: "", Row1: "AAA"},
+		},
+		{
+			Name:     "SD_scroll_down_caret_2",
+			Input:    "AAA\x1b[2;1HBBB\x1b[2^",
+			Expected: Expectation{Row0: "", Row1: ""},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
