@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Terminal Buffer Streaming Demo</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.1.0-beta.191/css/xterm.min.css">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  #header {
+    padding: 12px 20px;
+    background: #16213e;
+    border-bottom: 1px solid #0f3460;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  #header h1 { font-size: 16px; font-weight: 600; }
+  #stats {
+    font-size: 12px;
+    color: #888;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  #stats span { display: inline-flex; align-items: center; gap: 4px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .dot.green { background: #4caf50; }
+  .dot.red { background: #f44336; }
+  .dot.yellow { background: #ff9800; }
+  #controls {
+    display: flex;
+    gap: 8px;
+  }
+  button {
+    padding: 4px 12px;
+    border: 1px solid #0f3460;
+    background: #16213e;
+    color: #e0e0e0;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  button:hover { background: #1a3a6e; }
+  .backend-toggle {
+    display: flex;
+    gap: 0;
+    border: 1px solid #0f3460;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .backend-toggle button {
+    border: none;
+    border-radius: 0;
+    border-right: 1px solid #0f3460;
+    padding: 4px 14px;
+    font-weight: 600;
+  }
+  .backend-toggle button:last-child { border-right: none; }
+  .backend-toggle button.active {
+    background: #0f3460;
+    color: #58a6ff;
+  }
+  #terminal-container {
+    flex: 1;
+    padding: 8px;
+    overflow: hidden;
+  }
+  #log {
+    height: 140px;
+    overflow-y: auto;
+    padding: 8px 20px;
+    background: #0d1117;
+    border-top: 1px solid #0f3460;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    color: #8b949e;
+    flex-shrink: 0;
+  }
+  #log div { padding: 1px 0; }
+  #log .replay { color: #58a6ff; }
+  #log .data { color: #7ee787; }
+  #log .error { color: #f85149; }
+  #log .info { color: #d2a8ff; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>Terminal Buffer Streaming</h1>
+  <div id="stats">
+    <span><span class="dot" id="connDot"></span> <span id="connStatus">connecting...</span></span>
+    <span>Backend: <strong id="backendDisplay">Go</strong></span>
+    <span>Session: <strong id="sessionDisplay">-</strong></span>
+    <span>Replays: <strong id="replayCount">0</strong></span>
+    <span>Data msgs: <strong id="dataCount">0</strong></span>
+    <span>Bytes: <strong id="bytesRecv">0</strong></span>
+  </div>
+  <div class="backend-toggle">
+    <button id="btn-go" class="active" onclick="switchBackend('go')">Go xterm</button>
+    <button id="btn-node" onclick="switchBackend('node')">Node.js xterm.js</button>
+  </div>
+  <div id="controls">
+    <button onclick="simulateDisconnect()">Simulate Disconnect (3s)</button>
+    <button onclick="requestReplay()">Request Replay</button>
+  </div>
+</div>
+
+<div id="terminal-container"></div>
+<div id="log"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.1.0-beta.191/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.12.0-beta.195/lib/addon-fit.min.js"></script>
+<script>
+
+let term, fitAddon, ws;
+let replays = 0, dataMsgs = 0, totalBytes = 0;
+let disconnected = false;
+let sessionId = null;
+let currentBackend = 'go';
+const sessionIds = { go: null, node: null };
+
+const logEl = document.getElementById('log');
+function addLog(cls, msg) {
+  const d = document.createElement('div');
+  d.className = cls;
+  const ts = new Date().toISOString().slice(11, 23);
+  d.textContent = '[' + ts + '] ' + msg;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+  while (logEl.children.length > 200) logEl.removeChild(logEl.firstChild);
+}
+
+function initTerminal() {
+  term = new window.Terminal({
+    cols: 120,
+    rows: 30,
+    fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', monospace",
+    fontSize: 13,
+    theme: {
+      background: '#0d1117',
+      foreground: '#c9d1d9',
+      cursor: '#58a6ff',
+      selectionBackground: '#264f78',
+    },
+    cursorBlink: true,
+    allowProposedApi: true,
+  });
+
+  fitAddon = new window.FitAddon.FitAddon();
+  term.loadAddon(fitAddon);
+  term.open(document.getElementById('terminal-container'));
+  fitAddon.fit();
+
+  term.onData(data => {
+    if (ws && ws.readyState === WebSocket.OPEN && !disconnected) {
+      ws.send(JSON.stringify({ type: 'input', data: data }));
+    }
+  });
+
+  window.addEventListener('resize', () => {
+    fitAddon.fit();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+    }
+  });
+}
+
+function decodeBase64(str) {
+  const bytes = atob(str);
+  const arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  return new TextDecoder().decode(arr);
+}
+
+function applyReplay(msg) {
+  if (msg.sessionId) {
+    sessionId = msg.sessionId;
+    sessionIds[currentBackend] = msg.sessionId;
+    document.getElementById('sessionDisplay').textContent = sessionId;
+  }
+
+  term.reset();
+
+  if (msg.data) {
+    term.write(decodeBase64(msg.data));
+  }
+
+  updateStats();
+}
+
+function applyData(msg) {
+  if (msg.data) {
+    term.write(decodeBase64(msg.data));
+  }
+  updateStats();
+}
+
+function switchBackend(backend) {
+  if (backend === currentBackend && ws && ws.readyState === WebSocket.OPEN) return;
+
+  currentBackend = backend;
+  sessionId = sessionIds[backend] || null;
+
+  document.getElementById('btn-go').className = backend === 'go' ? 'active' : '';
+  document.getElementById('btn-node').className = backend === 'node' ? 'active' : '';
+
+  replays = 0; dataMsgs = 0; totalBytes = 0;
+  updateStats();
+
+  if (ws) {
+    disconnected = true;
+    ws.close();
+  }
+  disconnected = false;
+  addLog('info', '--- Switching to ' + (backend === 'go' ? 'Go xterm' : 'Node.js xterm.js') + ' backend ---');
+  connect();
+}
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsPath = currentBackend === 'node' ? '/ws-node' : '/ws';
+  let url = proto + '//' + location.host + wsPath;
+  if (sessionId) {
+    url += '?session=' + encodeURIComponent(sessionId);
+  }
+
+  const backendLabel = currentBackend === 'go' ? 'Go' : 'Node.js';
+  addLog('info', sessionId ? 'Reconnecting to ' + backendLabel + ' session ' + sessionId : 'Connecting (' + backendLabel + ', new session)');
+  ws = new WebSocket(url);
+
+  ws.onopen = () => {
+    document.getElementById('connDot').className = 'dot green';
+    document.getElementById('connStatus').textContent = 'connected';
+    addLog('info', 'WebSocket connected');
+    disconnected = false;
+    // Sync the PTY size with the fitted terminal.
+    fitAddon.fit();
+    ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+  };
+
+  ws.onmessage = (event) => {
+    totalBytes += event.data.length;
+    const msg = JSON.parse(event.data);
+
+    if (msg.type === 'replay') {
+      replays++;
+      addLog('replay', 'Replay: session=' + (msg.sessionId || '-') + ', ' + (msg.data || '').length + ' chars (base64), ' + event.data.length + ' bytes');
+      applyReplay(msg);
+    } else if (msg.type === 'data') {
+      dataMsgs++;
+      applyData(msg);
+    } else if (msg.type === 'exited') {
+      addLog('error', 'Terminal process exited');
+    }
+  };
+
+  ws.onclose = () => {
+    document.getElementById('connDot').className = 'dot red';
+    document.getElementById('connStatus').textContent = 'disconnected';
+    addLog('error', 'WebSocket closed');
+    if (!disconnected) {
+      setTimeout(connect, 1000);
+    }
+  };
+
+  ws.onerror = () => { addLog('error', 'WebSocket error'); };
+}
+
+function simulateDisconnect() {
+  if (!ws) return;
+  const backendLabel = currentBackend === 'go' ? 'Go' : 'Node.js';
+  addLog('info', '--- Simulating disconnect (3s) — ' + backendLabel + ' session ' + sessionId + ' stays alive on server ---');
+  disconnected = true;
+  ws.close();
+  document.getElementById('connDot').className = 'dot yellow';
+  document.getElementById('connStatus').textContent = 'simulated disconnect...';
+
+  setTimeout(() => {
+    addLog('info', '--- Reconnecting to session ' + sessionId + ' ---');
+    disconnected = false;
+    connect();
+  }, 3000);
+}
+
+function requestReplay() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'replay' }));
+    addLog('info', 'Requested fresh replay');
+  }
+}
+
+function updateStats() {
+  document.getElementById('backendDisplay').textContent = currentBackend === 'go' ? 'Go' : 'Node.js';
+  document.getElementById('replayCount').textContent = replays;
+  document.getElementById('dataCount').textContent = dataMsgs;
+  document.getElementById('bytesRecv').textContent = totalBytes > 1024 ? (totalBytes / 1024).toFixed(1) + ' KB' : totalBytes + ' B';
+}
+
+initTerminal();
+connect();
+</script>
+</body>
+</html>
