@@ -97,6 +97,51 @@ func (c *CellData) SetFromCharData(cd CharData) {
 	}
 }
 
+// AttributesEqual returns true if this cell has the same visual attributes as other.
+// Compares fg/bg color and mode, all text decoration flags, and underline style/color.
+func (c *CellData) AttributesEqual(other *CellData) bool {
+	if c.GetFgColorMode() != other.GetFgColorMode() || c.GetFgColor() != other.GetFgColor() {
+		return false
+	}
+	if c.GetBgColorMode() != other.GetBgColorMode() || c.GetBgColor() != other.GetBgColor() {
+		return false
+	}
+	if c.IsInverse() != other.IsInverse() {
+		return false
+	}
+	if c.IsBold() != other.IsBold() {
+		return false
+	}
+	if c.IsUnderline() != other.IsUnderline() {
+		return false
+	}
+	if c.IsOverline() != other.IsOverline() {
+		return false
+	}
+	if c.IsBlink() != other.IsBlink() {
+		return false
+	}
+	if c.IsInvisible() != other.IsInvisible() {
+		return false
+	}
+	if c.IsItalic() != other.IsItalic() {
+		return false
+	}
+	if c.IsDim() != other.IsDim() {
+		return false
+	}
+	if c.IsStrikethrough() != other.IsStrikethrough() {
+		return false
+	}
+	if c.GetUnderlineStyle() != other.GetUnderlineStyle() {
+		return false
+	}
+	if c.GetUnderlineColor() != other.GetUnderlineColor() {
+		return false
+	}
+	return true
+}
+
 // GetAsCharData returns the cell as a legacy CharData tuple.
 func (c *CellData) GetAsCharData() CharData {
 	return NewCharData(c.Fg, c.GetChars(), c.GetWidth(), c.GetCode())

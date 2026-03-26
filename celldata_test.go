@@ -172,3 +172,4 @@ func TestCellDataGetCodeEmptyCombined(t *testing.T) {
 		t.Errorf("(-want +got):\n%s", diff)
 	}
 }
+
