@@ -221,6 +221,12 @@ func NewInputHandler(
 	p.RegisterCsiHandler(FunctionIdentifier{Final: 'n'}, h.deviceStatus)
 	p.RegisterCsiHandler(FunctionIdentifier{Prefix: '?', Final: 'n'}, h.deviceStatusPrivate)
 	p.RegisterCsiHandler(FunctionIdentifier{Intermediates: "!", Final: 'p'}, h.softReset)
+	p.RegisterCsiHandler(FunctionIdentifier{Intermediates: "$", Final: 'p'}, func(params *Params) bool {
+		return h.requestMode(params, false)
+	})
+	p.RegisterCsiHandler(FunctionIdentifier{Prefix: '?', Intermediates: "$", Final: 'p'}, func(params *Params) bool {
+		return h.requestMode(params, true)
+	})
 	p.RegisterCsiHandler(FunctionIdentifier{Intermediates: " ", Final: 'q'}, h.setCursorStyle)
 	p.RegisterCsiHandler(FunctionIdentifier{Final: 'r'}, h.setScrollRegion)
 	p.RegisterCsiHandler(FunctionIdentifier{Final: 's'}, h.csiSaveCursor)

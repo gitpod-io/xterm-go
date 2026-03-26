@@ -726,6 +726,96 @@ func (h *InputHandler) resetModePrivate(params *Params) bool {
 	return true
 }
 
+// requestMode handles DECRPM — DEC Private Mode Report and ANSI Mode Report.
+// CSI Ps $ p (isPrivate=false) reports ANSI mode status.
+// CSI ? Ps $ p (isPrivate=true) reports DEC private mode status.
+// Response: CSI Ps ; Pm $ y (ANSI) or CSI ? Ps ; Pm $ y (private).
+// Pm: 1=set, 2=reset, 0=not recognized.
+func (h *InputHandler) requestMode(params *Params, isPrivate bool) bool {
+	mode := int(params.Params[0])
+	pm := 0 // not recognized
+
+	if isPrivate {
+		pm = h.privateModeSetting(mode)
+	} else {
+		pm = h.ansiModeSetting(mode)
+	}
+
+	var resp string
+	if isPrivate {
+		resp = fmt.Sprintf("\x1b[?%d;%d$y", mode, pm)
+	} else {
+		resp = fmt.Sprintf("\x1b[%d;%d$y", mode, pm)
+	}
+	h.coreService.TriggerDataEvent(resp, false, false)
+	return true
+}
+
+// privateModeSetting returns the DECRPM Pm value for a DEC private mode.
+func (h *InputHandler) privateModeSetting(mode int) int {
+	dm := &h.coreService.DecPrivateModes
+	switch mode {
+	case 1:
+		return boolToPm(dm.ApplicationCursorKeys)
+	case 6:
+		return boolToPm(dm.Origin)
+	case 7:
+		return boolToPm(dm.Wraparound)
+	case 25:
+		return boolToPm(!h.coreService.IsCursorHidden)
+	case 45:
+		return boolToPm(dm.ReverseWraparound)
+	case 66:
+		return boolToPm(dm.ApplicationKeypad)
+	case 9:
+		return boolToPm(dm.MouseTrackingMode == "X10")
+	case 1000:
+		return boolToPm(dm.MouseTrackingMode == "VT200")
+	case 1002:
+		return boolToPm(dm.MouseTrackingMode == "DRAG")
+	case 1003:
+		return boolToPm(dm.MouseTrackingMode == "ANY")
+	case 1004:
+		return boolToPm(dm.SendFocus)
+	case 1006:
+		return boolToPm(dm.MouseEncoding == "SGR")
+	case 1016:
+		return boolToPm(dm.MouseEncoding == "SGR_PIXELS")
+	case 47, 1047, 1049:
+		return boolToPm(h.bufferService.Buffers.Active() == h.bufferService.Buffers.Alt())
+	case 2004:
+		return boolToPm(dm.BracketedPasteMode)
+	case 2026:
+		return boolToPm(dm.SynchronizedOutput)
+	case 2031:
+		return boolToPm(dm.ColorSchemeUpdates)
+	case 9001:
+		return boolToPm(dm.Win32InputMode)
+	default:
+		return 0 // not recognized
+	}
+}
+
+// ansiModeSetting returns the DECRPM Pm value for an ANSI mode.
+func (h *InputHandler) ansiModeSetting(mode int) int {
+	switch mode {
+	case 4:
+		return boolToPm(h.coreService.Modes.InsertMode)
+	case 20:
+		return boolToPm(h.optionsService.Options.ConvertEol)
+	default:
+		return 0 // not recognized
+	}
+}
+
+// boolToPm converts a boolean to a DECRPM Pm value (1=set, 2=reset).
+func boolToPm(set bool) int {
+	if set {
+		return 1
+	}
+	return 2
+}
+
 // kittyKeyboardMaxStackSize is the maximum depth of the kitty keyboard flag stack.
 const kittyKeyboardMaxStackSize = 10
 

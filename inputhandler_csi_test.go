@@ -1121,3 +1121,86 @@ func TestKittyKeyboardPop(t *testing.T) {
 		}
 	})
 }
+
+func TestRequestModePrivate(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		Name     string
+		Setup    string
+		Query    string
+		Expected string
+	}{
+		{"cursor_visible_default", "", "\x1b[?25$p", "\x1b[?25;1$y"},
+		{"cursor_hidden", "\x1b[?25l", "\x1b[?25$p", "\x1b[?25;2$y"},
+		{"app_cursor_keys_default", "", "\x1b[?1$p", "\x1b[?1;2$y"},
+		{"app_cursor_keys_set", "\x1b[?1h", "\x1b[?1$p", "\x1b[?1;1$y"},
+		{"wraparound_default", "", "\x1b[?7$p", "\x1b[?7;1$y"},
+		{"wraparound_reset", "\x1b[?7l", "\x1b[?7$p", "\x1b[?7;2$y"},
+		{"bracketed_paste_default", "", "\x1b[?2004$p", "\x1b[?2004;2$y"},
+		{"bracketed_paste_set", "\x1b[?2004h", "\x1b[?2004$p", "\x1b[?2004;1$y"},
+		{"origin_default", "", "\x1b[?6$p", "\x1b[?6;2$y"},
+		{"send_focus_default", "", "\x1b[?1004$p", "\x1b[?1004;2$y"},
+		{"send_focus_set", "\x1b[?1004h", "\x1b[?1004$p", "\x1b[?1004;1$y"},
+		{"sync_output_default", "", "\x1b[?2026$p", "\x1b[?2026;2$y"},
+		{"sync_output_set", "\x1b[?2026h", "\x1b[?2026$p", "\x1b[?2026;1$y"},
+		{"unrecognized_mode", "", "\x1b[?9999$p", "\x1b[?9999;0$y"},
+		{"alt_buffer_default", "", "\x1b[?47$p", "\x1b[?47;2$y"},
+		{"alt_buffer_set", "\x1b[?1049h", "\x1b[?1049$p", "\x1b[?1049;1$y"},
+		{"reverse_wraparound_set", "\x1b[?45h", "\x1b[?45$p", "\x1b[?45;1$y"},
+		{"mouse_tracking_x10", "\x1b[?9h", "\x1b[?9$p", "\x1b[?9;1$y"},
+		{"mouse_tracking_vt200", "\x1b[?1000h", "\x1b[?1000$p", "\x1b[?1000;1$y"},
+		{"mouse_encoding_sgr", "\x1b[?1006h", "\x1b[?1006$p", "\x1b[?1006;1$y"},
+		{"color_scheme_updates_set", "\x1b[?2031h", "\x1b[?2031$p", "\x1b[?2031;1$y"},
+		{"win32_input_set", "\x1b[?9001h", "\x1b[?9001$p", "\x1b[?9001;1$y"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			h := newTestInputHandler(80, 24)
+			var response string
+			h.coreService.OnDataEmitter.Event(func(data string) {
+				response = data
+			})
+			if tc.Setup != "" {
+				h.ParseString(tc.Setup)
+			}
+			h.ParseString(tc.Query)
+			if response != tc.Expected {
+				t.Errorf("expected response %q, got %q", tc.Expected, response)
+			}
+		})
+	}
+}
+
+func TestRequestModeANSI(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		Name     string
+		Setup    string
+		Query    string
+		Expected string
+	}{
+		{"insert_mode_default", "", "\x1b[4$p", "\x1b[4;2$y"},
+		{"insert_mode_set", "\x1b[4h", "\x1b[4$p", "\x1b[4;1$y"},
+		{"convert_eol_default", "", "\x1b[20$p", "\x1b[20;2$y"},
+		{"unrecognized_ansi_mode", "", "\x1b[99$p", "\x1b[99;0$y"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			h := newTestInputHandler(80, 24)
+			var response string
+			h.coreService.OnDataEmitter.Event(func(data string) {
+				response = data
+			})
+			if tc.Setup != "" {
+				h.ParseString(tc.Setup)
+			}
+			h.ParseString(tc.Query)
+			if response != tc.Expected {
+				t.Errorf("expected response %q, got %q", tc.Expected, response)
+			}
+		})
+	}
+}
+
