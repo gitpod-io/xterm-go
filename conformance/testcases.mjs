@@ -340,4 +340,34 @@ export const testCases = [
     cols: 20, rows: 5,
     input: "\x1b(0lqqqqk\r\nx    x\r\nmqqqqj\x1b(B",
   },
+
+  // --- CSI ^ scroll down alias ---
+  {
+    name: "csi_caret_scroll_down",
+    cols: 20, rows: 5,
+    input: "AAA\r\nBBB\r\nCCC\r\nDDD\r\nEEE\x1b[2^",
+  },
+
+  // --- XTVERSION response ---
+  {
+    name: "xtversion_response",
+    cols: 80, rows: 24,
+    input: "\x1b[>q",
+    captureResponse: true,
+  },
+
+  // --- Soft hyphen ignored ---
+  {
+    name: "soft_hyphen_ignored",
+    cols: 80, rows: 24,
+    input: "AB\u00ADCD",
+  },
+
+  // --- Cursor clamp after resize to fewer rows ---
+  {
+    name: "cursor_clamp_resize_shrink",
+    cols: 20, rows: 10,
+    input: "\x1b[9;1H",
+    resize: { cols: 20, rows: 3 },
+  },
 ];

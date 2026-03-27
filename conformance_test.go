@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -281,9 +282,17 @@ func TestConformance(t *testing.T) {
 				t.Errorf("scrollback mismatch (-xterm.js +go):\n%s", diff)
 			}
 
-			// Compare response (for DA1, DSR tests)
+			// Compare response (for DA1, DSR tests).
+			// XTVERSION responses differ by design: xterm.js reports its own
+			// name/version while the Go port reports "xterm-go". We only verify
+			// the DCS envelope format for XTVERSION.
 			if tc.ExpectedResponse != "" {
-				if diff := cmp.Diff(tc.ExpectedResponse, gotResponse); diff != "" {
+				if strings.HasPrefix(tc.ExpectedResponse, "\x1bP>|") {
+					// XTVERSION: verify DCS >| ... ST format
+					if !strings.HasPrefix(gotResponse, "\x1bP>|") || !strings.HasSuffix(gotResponse, "\x1b\\") {
+						t.Errorf("xtversion response format mismatch: got %q, want DCS >|...<ST> envelope", gotResponse)
+					}
+				} else if diff := cmp.Diff(tc.ExpectedResponse, gotResponse); diff != "" {
 					t.Errorf("response mismatch (-xterm.js +go):\n%s", diff)
 				}
 			}

@@ -4870,5 +4870,160 @@
       ],
       "bufferType": "normal"
     }
+  },
+  {
+    "name": "csi_caret_scroll_down",
+    "cols": 20,
+    "rows": 5,
+    "initialCols": 20,
+    "initialRows": 5,
+    "input": "AAA\r\nBBB\r\nCCC\r\nDDD\r\nEEE\u001b[2^",
+    "expected": {
+      "cursor": {
+        "x": 3,
+        "y": 4
+      },
+      "lines": [
+        {
+          "text": "",
+          "isWrapped": false
+        },
+        {
+          "text": "",
+          "isWrapped": false
+        },
+        {
+          "text": "AAA",
+          "isWrapped": false,
+          "cells": [
+            {
+              "chars": "A",
+              "width": 1
+            },
+            {
+              "chars": "A",
+              "width": 1
+            },
+            {
+              "chars": "A",
+              "width": 1
+            }
+          ]
+        },
+        {
+          "text": "BBB",
+          "isWrapped": false,
+          "cells": [
+            {
+              "chars": "B",
+              "width": 1
+            },
+            {
+              "chars": "B",
+              "width": 1
+            },
+            {
+              "chars": "B",
+              "width": 1
+            }
+          ]
+        },
+        {
+          "text": "CCC",
+          "isWrapped": false,
+          "cells": [
+            {
+              "chars": "C",
+              "width": 1
+            },
+            {
+              "chars": "C",
+              "width": 1
+            },
+            {
+              "chars": "C",
+              "width": 1
+            }
+          ]
+        }
+      ],
+      "bufferType": "normal"
+    }
+  },
+  {
+    "name": "xtversion_response",
+    "cols": 80,
+    "rows": 24,
+    "initialCols": 80,
+    "initialRows": 24,
+    "input": "\u001b[>q",
+    "expected": {
+      "cursor": {
+        "x": 0,
+        "y": 0
+      },
+      "lines": [],
+      "bufferType": "normal"
+    },
+    "expectedResponse": "\u001bP>|xterm.js(6.0.0)\u001b\\"
+  },
+  {
+    "name": "soft_hyphen_ignored",
+    "cols": 80,
+    "rows": 24,
+    "initialCols": 80,
+    "initialRows": 24,
+    "input": "AB­CD",
+    "expected": {
+      "cursor": {
+        "x": 4,
+        "y": 0
+      },
+      "lines": [
+        {
+          "text": "ABCD",
+          "isWrapped": false,
+          "cells": [
+            {
+              "chars": "A",
+              "width": 1
+            },
+            {
+              "chars": "B",
+              "width": 1
+            },
+            {
+              "chars": "C",
+              "width": 1
+            },
+            {
+              "chars": "D",
+              "width": 1
+            }
+          ]
+        }
+      ],
+      "bufferType": "normal"
+    }
+  },
+  {
+    "name": "cursor_clamp_resize_shrink",
+    "cols": 20,
+    "rows": 3,
+    "initialCols": 20,
+    "initialRows": 10,
+    "input": "\u001b[9;1H",
+    "expected": {
+      "cursor": {
+        "x": 0,
+        "y": 2
+      },
+      "lines": [],
+      "bufferType": "normal"
+    },
+    "resize": {
+      "cols": 20,
+      "rows": 3
+    }
   }
 ]
