@@ -83,7 +83,9 @@ type InputHandler struct {
 	parseBuffer     []uint32
 	dirtyRowTracker *DirtyRowTracker
 
-	windowTitle string
+	windowTitle    string
+	windowTitleStack []string
+	iconNameStack    []string
 
 	// Events
 	OnCursorMoveEmitter           EventEmitter[struct{}]
@@ -229,6 +231,7 @@ func NewInputHandler(
 	})
 	p.RegisterCsiHandler(FunctionIdentifier{Intermediates: " ", Final: 'q'}, h.setCursorStyle)
 	p.RegisterCsiHandler(FunctionIdentifier{Final: 'r'}, h.setScrollRegion)
+	p.RegisterCsiHandler(FunctionIdentifier{Final: 't'}, h.windowOptions)
 	p.RegisterCsiHandler(FunctionIdentifier{Final: 's'}, h.csiSaveCursor)
 	p.RegisterCsiHandler(FunctionIdentifier{Final: 'u'}, h.csiRestoreCursor)
 	p.RegisterCsiHandler(FunctionIdentifier{Prefix: '=', Final: 'u'}, h.kittyKeyboardSet)

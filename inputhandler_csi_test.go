@@ -1204,3 +1204,137 @@ func TestRequestModeANSI(t *testing.T) {
 	}
 }
 
+func TestWindowOptionsReportSize(t *testing.T) {
+	t.Parallel()
+	h := newTestInputHandler(80, 24)
+	var response string
+	h.coreService.OnDataEmitter.Event(func(data string) {
+		response = data
+	})
+	h.ParseString("\x1b[18t")
+	expected := "\x1b[8;24;80t"
+	if response != expected {
+		t.Errorf("expected response %q, got %q", expected, response)
+	}
+}
+
+func TestWindowOptionsReportSizeCustom(t *testing.T) {
+	t.Parallel()
+	h := newTestInputHandler(132, 50)
+	var response string
+	h.coreService.OnDataEmitter.Event(func(data string) {
+		response = data
+	})
+	h.ParseString("\x1b[18t")
+	expected := "\x1b[8;50;132t"
+	if response != expected {
+		t.Errorf("expected response %q, got %q", expected, response)
+	}
+}
+
+func TestWindowOptionsPushPopTitle(t *testing.T) {
+	t.Parallel()
+	h := newTestInputHandler(80, 24)
+	var lastTitle string
+	h.OnTitleChangeEmitter.Event(func(title string) {
+		lastTitle = title
+	})
+
+	h.ParseString("\x1b]2;first\x1b\\")
+	if lastTitle != "first" {
+		t.Fatalf("expected title %q, got %q", "first", lastTitle)
+	}
+
+	h.ParseString("\x1b[22;2t")
+
+	h.ParseString("\x1b]2;second\x1b\\")
+	if lastTitle != "second" {
+		t.Fatalf("expected title %q, got %q", "second", lastTitle)
+	}
+
+	h.ParseString("\x1b[23;2t")
+	if lastTitle != "first" {
+		t.Errorf("expected title %q after pop, got %q", "first", lastTitle)
+	}
+}
+
+func TestWindowOptionsPushPopTitleMultiple(t *testing.T) {
+	t.Parallel()
+	h := newTestInputHandler(80, 24)
+	var lastTitle string
+	h.OnTitleChangeEmitter.Event(func(title string) {
+		lastTitle = title
+	})
+
+	h.ParseString("\x1b]2;alpha\x1b\\")
+	h.ParseString("\x1b[22;2t")
+	h.ParseString("\x1b]2;beta\x1b\\")
+	h.ParseString("\x1b[22;2t")
+	h.ParseString("\x1b]2;gamma\x1b\\")
+	h.ParseString("\x1b[22;2t")
+	h.ParseString("\x1b]2;delta\x1b\\")
+
+	h.ParseString("\x1b[23;2t")
+	if lastTitle != "gamma" {
+		t.Errorf("expected %q, got %q", "gamma", lastTitle)
+	}
+	h.ParseString("\x1b[23;2t")
+	if lastTitle != "beta" {
+		t.Errorf("expected %q, got %q", "beta", lastTitle)
+	}
+	h.ParseString("\x1b[23;2t")
+	if lastTitle != "alpha" {
+		t.Errorf("expected %q, got %q", "alpha", lastTitle)
+	}
+}
+
+func TestWindowOptionsPopEmptyStack(t *testing.T) {
+	t.Parallel()
+	h := newTestInputHandler(80, 24)
+	titleChanges := 0
+	h.OnTitleChangeEmitter.Event(func(title string) {
+		titleChanges++
+	})
+
+	h.ParseString("\x1b]2;initial\x1b\\")
+	titleChanges = 0
+
+	h.ParseString("\x1b[23;2t")
+	if titleChanges != 0 {
+		t.Errorf("expected no title change on empty stack pop, got %d changes", titleChanges)
+	}
+}
+
+func TestWindowOptionsPushPopBoth(t *testing.T) {
+	t.Parallel()
+	h := newTestInputHandler(80, 24)
+	var lastTitle string
+	h.OnTitleChangeEmitter.Event(func(title string) {
+		lastTitle = title
+	})
+
+	h.ParseString("\x1b]2;both-test\x1b\\")
+	h.ParseString("\x1b[22;0t")
+	h.ParseString("\x1b]2;replaced\x1b\\")
+
+	h.ParseString("\x1b[23;0t")
+	if lastTitle != "both-test" {
+		t.Errorf("expected %q, got %q", "both-test", lastTitle)
+	}
+}
+
+func TestWindowOptionsUnknownSubcommand(t *testing.T) {
+	t.Parallel()
+	h := newTestInputHandler(80, 24)
+	var response string
+	h.coreService.OnDataEmitter.Event(func(data string) {
+		response = data
+	})
+	h.ParseString("\x1b[99t")
+	if response != "" {
+		t.Errorf("expected no response for unknown subcommand, got %q", response)
+	}
+}
+
+
+

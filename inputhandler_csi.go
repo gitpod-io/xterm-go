@@ -885,3 +885,57 @@ func (h *InputHandler) kittyKeyboardPop(params *Params) bool {
 	}
 	return true
 }
+
+// --- Window manipulation (CSI Ps t) ---
+
+// windowOptions handles CSI Ps ; Ps ; Ps t — window manipulation commands.
+// Implements sub-commands 18 (report size), 22 (push title), and 23 (pop title).
+func (h *InputHandler) windowOptions(params *Params) bool {
+	if params.Length == 0 {
+		return true
+	}
+	switch params.Params[0] {
+	case 18:
+		// Report terminal size in characters: CSI 8 ; rows ; cols t
+		h.coreService.TriggerDataEvent(
+			fmt.Sprintf("\x1b[8;%d;%dt", h.bufferService.Rows, h.bufferService.Cols),
+			false, false,
+		)
+	case 22:
+		// Push title onto stack.
+		// Ps2: 0 = both icon+title, 1 = icon only, 2 = title only.
+		ps2 := int32(0)
+		if params.Length >= 2 {
+			ps2 = params.Params[1]
+		}
+		if ps2 == 0 || ps2 == 2 {
+			h.windowTitleStack = append(h.windowTitleStack, h.windowTitle)
+		}
+		if ps2 == 0 || ps2 == 1 {
+			// Icon name shares the window title in this implementation.
+			h.iconNameStack = append(h.iconNameStack, h.windowTitle)
+		}
+	case 23:
+		// Pop title from stack.
+		ps2 := int32(0)
+		if params.Length >= 2 {
+			ps2 = params.Params[1]
+		}
+		if ps2 == 0 || ps2 == 2 {
+			if len(h.windowTitleStack) > 0 {
+				title := h.windowTitleStack[len(h.windowTitleStack)-1]
+				h.windowTitleStack = h.windowTitleStack[:len(h.windowTitleStack)-1]
+				h.windowTitle = title
+				h.OnTitleChangeEmitter.Fire(title)
+			}
+		}
+		if ps2 == 0 || ps2 == 1 {
+			if len(h.iconNameStack) > 0 {
+				h.iconNameStack = h.iconNameStack[:len(h.iconNameStack)-1]
+			}
+		}
+	default:
+		// Other sub-commands (14, 16, etc.) are renderer-specific; silently ignore.
+	}
+	return true
+}
