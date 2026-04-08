@@ -246,6 +246,9 @@ func NewInputHandler(
 	p.RegisterCsiHandler(FunctionIdentifier{Prefix: '?', Final: 'h'}, h.setModePrivate)
 	p.RegisterCsiHandler(FunctionIdentifier{Prefix: '?', Final: 'l'}, h.resetModePrivate)
 
+	// DCS handlers
+	p.RegisterDcsHandler(FunctionIdentifier{Intermediates: "$", Final: 'q'}, NewDcsStringHandler(h.requestStatusString))
+
 	// OSC handlers
 	p.RegisterOscHandler(0, NewOscStringHandler(h.SetTitle)) // OSC 0 — set title + icon
 	p.RegisterOscHandler(2, NewOscStringHandler(h.SetTitle)) // OSC 2 — set title
