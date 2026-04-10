@@ -143,14 +143,13 @@ func TestSRScrollRight2(t *testing.T) {
 }
 
 func TestDECICInsertColumns(t *testing.T) {
-	t.Skip("DECIC not yet implemented in Go terminal")
 	t.Parallel()
 	term := newTestTerminal(5, 6)
 	defer term.Dispose()
 	for range 6 {
 		term.WriteString("12345")
 	}
-	term.WriteString("\x1b[3;3H\x1b['{")
+	term.WriteString("\x1b[3;3H\x1b['}")
 	want := []string{"12 34", "12 34", "12 34", "12 34", "12 34", "12 34"}
 	if diff := cmp.Diff(want, getAllViewportLines(term)); diff != "" {
 		t.Errorf("DECIC 1 (-want +got):\n%s", diff)
