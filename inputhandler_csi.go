@@ -2,6 +2,7 @@ package xterm
 
 import (
 	"fmt"
+	"strings"
 )
 
 // moveCursor moves the cursor by a relative offset, clamping to valid range.
@@ -446,7 +447,13 @@ func (h *InputHandler) sendDeviceAttributesPrimary(params *Params) bool {
 	if params.Params[0] > 0 {
 		return true
 	}
-	h.coreService.TriggerDataEvent("\x1b[?1;2c", false, false)
+	tn := h.optionsService.Options.TermName
+	switch {
+	case strings.HasPrefix(tn, "xterm"), strings.HasPrefix(tn, "rxvt-unicode"), strings.HasPrefix(tn, "screen"):
+		h.coreService.TriggerDataEvent("\x1b[?1;2c", false, false)
+	case strings.HasPrefix(tn, "linux"):
+		h.coreService.TriggerDataEvent("\x1b[?6c", false, false)
+	}
 	return true
 }
 
@@ -454,7 +461,15 @@ func (h *InputHandler) sendDeviceAttributesSecondary(params *Params) bool {
 	if params.Params[0] > 0 {
 		return true
 	}
-	h.coreService.TriggerDataEvent("\x1b[>0;276;0c", false, false)
+	tn := h.optionsService.Options.TermName
+	switch {
+	case strings.HasPrefix(tn, "xterm"), strings.HasPrefix(tn, "screen"):
+		h.coreService.TriggerDataEvent("\x1b[>0;276;0c", false, false)
+	case strings.HasPrefix(tn, "rxvt-unicode"):
+		h.coreService.TriggerDataEvent("\x1b[>85;95;0c", false, false)
+	case strings.HasPrefix(tn, "linux"):
+		// linux console does not respond to DA2
+	}
 	return true
 }
 

@@ -570,22 +570,87 @@ func TestDeviceStatus(t *testing.T) {
 	}
 }
 
+// newTestInputHandlerWithTermName creates an InputHandler with a custom TermName.
+func newTestInputHandlerWithTermName(cols, rows int, termName string) *InputHandler {
+	opts := DefaultOptions()
+	opts.Cols = cols
+	opts.Rows = rows
+	opts.Scrollback = 1000
+	opts.TermName = termName
+	optsSvc := NewOptionsService(&opts)
+	bufSvc := NewBufferService(optsSvc)
+	charSvc := NewCharsetService()
+	coreSvc := NewCoreService(optsSvc)
+	oscLinkSvc := NewOscLinkService(bufSvc)
+	uniSvc := NewUnicodeService()
+	return NewInputHandler(bufSvc, charSvc, coreSvc, optsSvc, oscLinkSvc, uniSvc)
+}
+
 func TestDeviceAttributes(t *testing.T) {
 	t.Parallel()
-	type Expectation struct {
-		Response string
-	}
-	h := newTestInputHandler(80, 24)
-	var response string
-	h.coreService.OnDataEmitter.Event(func(data string) {
-		response = data
+
+	t.Run("DA1", func(t *testing.T) {
+		t.Parallel()
+		tests := []struct {
+			Name     string
+			TermName string
+			Input    string
+			Expected string
+		}{
+			{"xterm_default", "xterm", "\x1b[c", "\x1b[?1;2c"},
+			{"xterm-256color", "xterm-256color", "\x1b[c", "\x1b[?1;2c"},
+			{"rxvt-unicode", "rxvt-unicode", "\x1b[c", "\x1b[?1;2c"},
+			{"screen", "screen", "\x1b[c", "\x1b[?1;2c"},
+			{"screen-256color", "screen-256color", "\x1b[c", "\x1b[?1;2c"},
+			{"linux", "linux", "\x1b[c", "\x1b[?6c"},
+			{"non_zero_param_no_response", "xterm", "\x1b[1c", ""},
+		}
+		for _, tc := range tests {
+			t.Run(tc.Name, func(t *testing.T) {
+				t.Parallel()
+				h := newTestInputHandlerWithTermName(80, 24, tc.TermName)
+				var response string
+				h.coreService.OnDataEmitter.Event(func(data string) {
+					response = data
+				})
+				h.ParseString(tc.Input)
+				if diff := cmp.Diff(tc.Expected, response); diff != "" {
+					t.Errorf("mismatch (-want +got):\n%s", diff)
+				}
+			})
+		}
 	})
-	h.ParseString("\x1b[c")
-	got := Expectation{Response: response}
-	expected := Expectation{Response: "\x1b[?1;2c"}
-	if diff := cmp.Diff(expected, got); diff != "" {
-		t.Errorf("mismatch (-want +got):\n%s", diff)
-	}
+
+	t.Run("DA2", func(t *testing.T) {
+		t.Parallel()
+		tests := []struct {
+			Name     string
+			TermName string
+			Input    string
+			Expected string
+		}{
+			{"xterm_default", "xterm", "\x1b[>c", "\x1b[>0;276;0c"},
+			{"xterm-256color", "xterm-256color", "\x1b[>c", "\x1b[>0;276;0c"},
+			{"screen", "screen", "\x1b[>c", "\x1b[>0;276;0c"},
+			{"rxvt-unicode", "rxvt-unicode", "\x1b[>c", "\x1b[>85;95;0c"},
+			{"linux_no_response", "linux", "\x1b[>c", ""},
+			{"non_zero_param_no_response", "xterm", "\x1b[>1c", ""},
+		}
+		for _, tc := range tests {
+			t.Run(tc.Name, func(t *testing.T) {
+				t.Parallel()
+				h := newTestInputHandlerWithTermName(80, 24, tc.TermName)
+				var response string
+				h.coreService.OnDataEmitter.Event(func(data string) {
+					response = data
+				})
+				h.ParseString(tc.Input)
+				if diff := cmp.Diff(tc.Expected, response); diff != "" {
+					t.Errorf("mismatch (-want +got):\n%s", diff)
+				}
+			})
+		}
+	})
 }
 
 func TestXtVersion(t *testing.T) {
