@@ -63,6 +63,87 @@ func TestOSC_SetTitle_Empty(t *testing.T) {
 	}
 }
 
+// --- OSC icon name tests ---
+
+func TestOSC1_SetIconName(t *testing.T) {
+	t.Parallel()
+	h := newTestHandler()
+	var iconName string
+	h.OnIconNameChangeEmitter.Event(func(s string) { iconName = s })
+
+	// OSC 1 ; <name> BEL
+	h.ParseString("\x1b]1;my-icon\x07")
+
+	if iconName != "my-icon" {
+		t.Errorf("expected icon name 'my-icon', got %q", iconName)
+	}
+	if h.iconName != "my-icon" {
+		t.Errorf("expected h.iconName 'my-icon', got %q", h.iconName)
+	}
+}
+
+func TestOSC1_SetIconName_ST(t *testing.T) {
+	t.Parallel()
+	h := newTestHandler()
+	var iconName string
+	h.OnIconNameChangeEmitter.Event(func(s string) { iconName = s })
+
+	// OSC 1 ; <name> ST (ESC \)
+	h.ParseString("\x1b]1;icon-st\x1b\\")
+
+	if iconName != "icon-st" {
+		t.Errorf("expected icon name 'icon-st', got %q", iconName)
+	}
+}
+
+func TestOSC1_SetIconName_Empty(t *testing.T) {
+	t.Parallel()
+	h := newTestHandler()
+	// Set a non-empty icon name first.
+	h.ParseString("\x1b]1;something\x07")
+
+	var iconName string
+	h.OnIconNameChangeEmitter.Event(func(s string) { iconName = s })
+
+	h.ParseString("\x1b]1;\x07")
+
+	if iconName != "" {
+		t.Errorf("expected empty icon name, got %q", iconName)
+	}
+}
+
+func TestOSC0_SetsTitleAndIconName(t *testing.T) {
+	t.Parallel()
+	h := newTestHandler()
+	var title, iconName string
+	h.OnTitleChangeEmitter.Event(func(s string) { title = s })
+	h.OnIconNameChangeEmitter.Event(func(s string) { iconName = s })
+
+	// OSC 0 should set both title and icon name.
+	h.ParseString("\x1b]0;both-value\x07")
+
+	if title != "both-value" {
+		t.Errorf("expected title 'both-value', got %q", title)
+	}
+	if iconName != "both-value" {
+		t.Errorf("expected icon name 'both-value', got %q", iconName)
+	}
+}
+
+func TestOSC2_DoesNotSetIconName(t *testing.T) {
+	t.Parallel()
+	h := newTestHandler()
+	iconNameChanged := false
+	h.OnIconNameChangeEmitter.Event(func(s string) { iconNameChanged = true })
+
+	// OSC 2 should only set title, not icon name.
+	h.ParseString("\x1b]2;title-only\x07")
+
+	if iconNameChanged {
+		t.Error("OSC 2 should not fire icon name change event")
+	}
+}
+
 // --- OSC color tests ---
 
 func TestOSC4_SetIndexedColor(t *testing.T) {

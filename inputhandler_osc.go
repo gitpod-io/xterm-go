@@ -15,10 +15,24 @@ var specialColors = []SpecialColorIndex{
 	SpecialColorCursor,
 }
 
-// SetTitle (OSC 0, OSC 2) — set the terminal window title.
+// SetTitle (OSC 2) — set the terminal window title.
 func (h *InputHandler) SetTitle(data string) bool {
 	h.windowTitle = data
 	h.OnTitleChangeEmitter.Fire(data)
+	return true
+}
+
+// setTitleAndIconName (OSC 0) — set both the window title and icon name.
+func (h *InputHandler) setTitleAndIconName(data string) bool {
+	h.SetTitle(data)
+	h.setIconName(data)
+	return true
+}
+
+// setIconName (OSC 1) — set the terminal icon name.
+func (h *InputHandler) setIconName(data string) bool {
+	h.iconName = data
+	h.OnIconNameChangeEmitter.Fire(data)
 	return true
 }
 

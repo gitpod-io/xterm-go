@@ -34,13 +34,14 @@ type Terminal struct {
 	inputHandler   *InputHandler
 
 	// Public event emitters (forwarded from sub-components).
-	OnBellEmitter        EventEmitter[struct{}]
-	OnTitleChangeEmitter EventEmitter[string]
-	OnLineFeedEmitter    EventEmitter[struct{}]
-	OnCursorMoveEmitter  EventEmitter[struct{}]
-	OnResizeEmitter      EventEmitter[BufferResizeEvent]
-	OnScrollEmitter      EventEmitter[int]
-	OnRenderEmitter      EventEmitter[RowRange]
+	OnBellEmitter           EventEmitter[struct{}]
+	OnTitleChangeEmitter    EventEmitter[string]
+	OnIconNameChangeEmitter EventEmitter[string]
+	OnLineFeedEmitter       EventEmitter[struct{}]
+	OnCursorMoveEmitter     EventEmitter[struct{}]
+	OnResizeEmitter         EventEmitter[BufferResizeEvent]
+	OnScrollEmitter         EventEmitter[int]
+	OnRenderEmitter         EventEmitter[RowRange]
 }
 
 // New creates a new Terminal with the given options.
@@ -71,6 +72,7 @@ func New(opts ...Option) *Terminal {
 	// Forward input handler events.
 	ih.OnRequestBellEmitter.Event(func(struct{}) { t.OnBellEmitter.Fire(struct{}{}) })
 	ih.OnTitleChangeEmitter.Event(func(s string) { t.OnTitleChangeEmitter.Fire(s) })
+	ih.OnIconNameChangeEmitter.Event(func(s string) { t.OnIconNameChangeEmitter.Fire(s) })
 	ih.OnLineFeedEmitter.Event(func(struct{}) { t.OnLineFeedEmitter.Fire(struct{}{}) })
 	ih.OnCursorMoveEmitter.Event(func(struct{}) { t.OnCursorMoveEmitter.Fire(struct{}{}) })
 	ih.OnRequestRefreshRowsEmitter.Event(func(r RowRange) { t.OnRenderEmitter.Fire(r) })
@@ -185,6 +187,14 @@ func (t *Terminal) OnTitleChange(fn func(string)) Disposable {
 	return t.OnTitleChangeEmitter.Event(fn)
 }
 
+// IconName returns the current icon name set via OSC 1 or OSC 0.
+func (t *Terminal) IconName() string { return t.inputHandler.iconName }
+
+// OnIconNameChange registers a callback for icon name change events.
+func (t *Terminal) OnIconNameChange(fn func(string)) Disposable {
+	return t.OnIconNameChangeEmitter.Event(fn)
+}
+
 // OnLineFeed registers a callback for line feed events.
 func (t *Terminal) OnLineFeed(fn func()) Disposable {
 	return t.OnLineFeedEmitter.Event(func(struct{}) { fn() })
@@ -239,6 +249,7 @@ func (t *Terminal) Dispose() {
 	t.coreService.Dispose()
 	t.OnBellEmitter.Dispose()
 	t.OnTitleChangeEmitter.Dispose()
+	t.OnIconNameChangeEmitter.Dispose()
 	t.OnLineFeedEmitter.Dispose()
 	t.OnCursorMoveEmitter.Dispose()
 	t.OnResizeEmitter.Dispose()

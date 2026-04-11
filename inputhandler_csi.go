@@ -927,8 +927,7 @@ func (h *InputHandler) windowOptions(params *Params) bool {
 			h.windowTitleStack = append(h.windowTitleStack, h.windowTitle)
 		}
 		if ps2 == 0 || ps2 == 1 {
-			// Icon name shares the window title in this implementation.
-			h.iconNameStack = append(h.iconNameStack, h.windowTitle)
+			h.iconNameStack = append(h.iconNameStack, h.iconName)
 		}
 	case 23:
 		// Pop title from stack.
@@ -946,7 +945,10 @@ func (h *InputHandler) windowOptions(params *Params) bool {
 		}
 		if ps2 == 0 || ps2 == 1 {
 			if len(h.iconNameStack) > 0 {
+				name := h.iconNameStack[len(h.iconNameStack)-1]
 				h.iconNameStack = h.iconNameStack[:len(h.iconNameStack)-1]
+				h.iconName = name
+				h.OnIconNameChangeEmitter.Fire(name)
 			}
 		}
 	default:

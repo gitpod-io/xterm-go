@@ -1401,5 +1401,80 @@ func TestWindowOptionsUnknownSubcommand(t *testing.T) {
 	}
 }
 
+func TestWindowOptionsPushPopIconName(t *testing.T) {
+	t.Parallel()
+	h := newTestInputHandler(80, 24)
+	var lastIconName string
+	h.OnIconNameChangeEmitter.Event(func(name string) {
+		lastIconName = name
+	})
 
+	// Set icon name via OSC 1.
+	h.ParseString("\x1b]1;first-icon\x07")
+	if lastIconName != "first-icon" {
+		t.Fatalf("expected icon name %q, got %q", "first-icon", lastIconName)
+	}
+
+	// Push icon name only (CSI 22;1t).
+	h.ParseString("\x1b[22;1t")
+
+	// Change icon name.
+	h.ParseString("\x1b]1;second-icon\x07")
+	if lastIconName != "second-icon" {
+		t.Fatalf("expected icon name %q, got %q", "second-icon", lastIconName)
+	}
+
+	// Pop icon name only (CSI 23;1t).
+	h.ParseString("\x1b[23;1t")
+	if lastIconName != "first-icon" {
+		t.Errorf("expected icon name %q after pop, got %q", "first-icon", lastIconName)
+	}
+}
+
+func TestWindowOptionsPushPopIconNameIndependentOfTitle(t *testing.T) {
+	t.Parallel()
+	h := newTestInputHandler(80, 24)
+	var lastTitle, lastIconName string
+	h.OnTitleChangeEmitter.Event(func(s string) { lastTitle = s })
+	h.OnIconNameChangeEmitter.Event(func(s string) { lastIconName = s })
+
+	// Set different title and icon name.
+	h.ParseString("\x1b]2;my-title\x1b\\")
+	h.ParseString("\x1b]1;my-icon\x07")
+
+	// Push both (CSI 22;0t).
+	h.ParseString("\x1b[22;0t")
+
+	// Change both.
+	h.ParseString("\x1b]2;new-title\x1b\\")
+	h.ParseString("\x1b]1;new-icon\x07")
+
+	// Pop both (CSI 23;0t).
+	h.ParseString("\x1b[23;0t")
+	if lastTitle != "my-title" {
+		t.Errorf("expected title %q, got %q", "my-title", lastTitle)
+	}
+	if lastIconName != "my-icon" {
+		t.Errorf("expected icon name %q, got %q", "my-icon", lastIconName)
+	}
+}
+
+func TestWindowOptionsPopIconNameEmptyStack(t *testing.T) {
+	t.Parallel()
+	h := newTestInputHandler(80, 24)
+	iconNameChanges := 0
+	h.OnIconNameChangeEmitter.Event(func(string) {
+		iconNameChanges++
+	})
+
+	// Set initial icon name.
+	h.ParseString("\x1b]1;initial\x07")
+	iconNameChanges = 0
+
+	// Pop from empty stack — should not fire event.
+	h.ParseString("\x1b[23;1t")
+	if iconNameChanges != 0 {
+		t.Errorf("expected no icon name change on empty stack pop, got %d changes", iconNameChanges)
+	}
+}
 

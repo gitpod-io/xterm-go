@@ -352,6 +352,39 @@ func TestTerminalTitleChange(t *testing.T) {
 	}
 }
 
+func TestTerminalIconNameChange(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	var iconName string
+	term.OnIconNameChange(func(s string) { iconName = s })
+
+	// OSC 1 ; <name> BEL
+	term.WriteString("\x1b]1;my-icon\x07")
+	if iconName != "my-icon" {
+		t.Errorf("iconName = %q, want %q", iconName, "my-icon")
+	}
+	if term.IconName() != "my-icon" {
+		t.Errorf("IconName() = %q, want %q", term.IconName(), "my-icon")
+	}
+}
+
+func TestTerminalOSC0_SetsTitleAndIconName(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	var title, iconName string
+	term.OnTitleChange(func(s string) { title = s })
+	term.OnIconNameChange(func(s string) { iconName = s })
+
+	// OSC 0 should set both.
+	term.WriteString("\x1b]0;both\x07")
+	if title != "both" {
+		t.Errorf("title = %q, want %q", title, "both")
+	}
+	if iconName != "both" {
+		t.Errorf("iconName = %q, want %q", iconName, "both")
+	}
+}
+
 func TestTerminalBell(t *testing.T) {
 	t.Parallel()
 	term := newTestTerminal(80, 24)

@@ -83,13 +83,15 @@ type InputHandler struct {
 	parseBuffer     []uint32
 	dirtyRowTracker *DirtyRowTracker
 
-	windowTitle    string
+	windowTitle      string
+	iconName         string
 	windowTitleStack []string
 	iconNameStack    []string
 
 	// Events
 	OnCursorMoveEmitter           EventEmitter[struct{}]
 	OnTitleChangeEmitter          EventEmitter[string]
+	OnIconNameChangeEmitter       EventEmitter[string]
 	OnLineFeedEmitter             EventEmitter[struct{}]
 	OnA11yCharEmitter             EventEmitter[string]
 	OnA11yTabEmitter              EventEmitter[int]
@@ -250,8 +252,9 @@ func NewInputHandler(
 	p.RegisterDcsHandler(FunctionIdentifier{Intermediates: "$", Final: 'q'}, NewDcsStringHandler(h.requestStatusString))
 
 	// OSC handlers
-	p.RegisterOscHandler(0, NewOscStringHandler(h.SetTitle)) // OSC 0 — set title + icon
-	p.RegisterOscHandler(2, NewOscStringHandler(h.SetTitle)) // OSC 2 — set title
+	p.RegisterOscHandler(0, NewOscStringHandler(h.setTitleAndIconName)) // OSC 0 — set title + icon name
+	p.RegisterOscHandler(1, NewOscStringHandler(h.setIconName))        // OSC 1 — set icon name
+	p.RegisterOscHandler(2, NewOscStringHandler(h.SetTitle))           // OSC 2 — set title
 	p.RegisterOscHandler(4, NewOscStringHandler(h.SetOrReportIndexedColor))
 	p.RegisterOscHandler(8, NewOscStringHandler(h.SetHyperlink))
 	p.RegisterOscHandler(10, NewOscStringHandler(h.SetOrReportFgColor))
@@ -530,6 +533,7 @@ func (h *InputHandler) Dispose() {
 	h.parser.Dispose()
 	h.OnCursorMoveEmitter.Dispose()
 	h.OnTitleChangeEmitter.Dispose()
+	h.OnIconNameChangeEmitter.Dispose()
 	h.OnLineFeedEmitter.Dispose()
 	h.OnA11yCharEmitter.Dispose()
 	h.OnA11yTabEmitter.Dispose()
