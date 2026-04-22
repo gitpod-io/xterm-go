@@ -6,6 +6,6 @@
     "generate": "node generate.mjs"
   },
   "dependencies": {
-    "@xterm/headless": "6.1.0-beta.195"
+    "@xterm/headless": "6.1.0-beta.199"
   }
 }
