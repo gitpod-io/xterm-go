@@ -60,6 +60,14 @@ func (p *Params) Reset() {
 	p.digitIsSub = false
 }
 
+// ResetZdm resets the params and seeds a single zero-default param (ZDM).
+// Equivalent to Reset() followed by AddParam(0); kept as a single call to
+// mirror the upstream xterm.js Params.resetZdm helper.
+func (p *Params) ResetZdm() {
+	p.Reset()
+	p.AddParam(0)
+}
+
 // AddParam appends a parameter value. Values < -1 panic. Values beyond
 // maxLength are silently ignored. Values exceeding maxParamValue are clamped.
 func (p *Params) AddParam(value int32) {

@@ -316,8 +316,7 @@ func (p *EscapeSequenceParser) Reset() {
 	p.oscParser.Reset()
 	p.dcsParser.Reset()
 	p.apcParser.Reset()
-	p.params.Reset()
-	p.params.AddParam(0) // ZDM
+	p.params.ResetZdm()
 	p.collect = 0
 	p.precedingJoinState = 0
 }
@@ -441,8 +440,7 @@ func (p *EscapeSequenceParser) Parse(data []uint32, length int) {
 			p.precedingJoinState = 0
 
 		case ParserActionClear:
-			p.params.Reset()
-			p.params.AddParam(0) // ZDM
+			p.params.ResetZdm()
 			p.collect = 0
 
 		case ParserActionDCSHook:
@@ -465,8 +463,7 @@ func (p *EscapeSequenceParser) Parse(data []uint32, length int) {
 			if code == 0x1b {
 				transition |= uint16(ParserStateEscape)
 			}
-			p.params.Reset()
-			p.params.AddParam(0) // ZDM
+			p.params.ResetZdm()
 			p.collect = 0
 			p.precedingJoinState = 0
 
@@ -490,8 +487,7 @@ func (p *EscapeSequenceParser) Parse(data []uint32, length int) {
 			if code == 0x1b {
 				transition |= uint16(ParserStateEscape)
 			}
-			p.params.Reset()
-			p.params.AddParam(0) // ZDM
+			p.params.ResetZdm()
 			p.collect = 0
 			p.precedingJoinState = 0
 
@@ -515,8 +511,7 @@ func (p *EscapeSequenceParser) Parse(data []uint32, length int) {
 			if code == 0x1b {
 				transition |= uint16(ParserStateEscape)
 			}
-			p.params.Reset()
-			p.params.AddParam(0) // ZDM
+			p.params.ResetZdm()
 			p.collect = 0
 			p.precedingJoinState = 0
 		}

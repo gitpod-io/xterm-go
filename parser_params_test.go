@@ -392,3 +392,69 @@ func TestParamsGetSubParamsAll(t *testing.T) {
 		t.Errorf("(-want +got):\n%s", diff)
 	}
 }
+
+func TestParamsResetZdm(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		Length int
+		Values []int32
+	}
+	type TestCase struct {
+		Name     string
+		Setup    func(p *Params)
+		Expected Expectation
+	}
+	tests := []TestCase{
+		{
+			Name:     "fresh params seeded with zero default",
+			Setup:    func(p *Params) {},
+			Expected: Expectation{Length: 1, Values: []int32{0}},
+		},
+		{
+			Name: "previously populated params collapse to single zero",
+			Setup: func(p *Params) {
+				p.AddParam(5)
+				p.AddSubParam(7)
+				p.AddParam(9)
+			},
+			Expected: Expectation{Length: 1, Values: []int32{0}},
+		},
+		{
+			Name: "matches Reset followed by AddParam(0)",
+			Setup: func(p *Params) {
+				p.AddParam(42)
+				p.AddSubParam(1)
+				p.AddSubParam(2)
+			},
+			Expected: Expectation{Length: 1, Values: []int32{0}},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			p := DefaultParams()
+			tc.Setup(p)
+			p.ResetZdm()
+			got := Expectation{
+				Length: p.Length,
+				Values: append([]int32{}, p.Params[:p.Length]...),
+			}
+			if diff := cmp.Diff(tc.Expected, got); diff != "" {
+				t.Errorf("(-want +got):\n%s", diff)
+			}
+
+			// Confirm equivalence with Reset() + AddParam(0).
+			ref := DefaultParams()
+			tc.Setup(ref)
+			ref.Reset()
+			ref.AddParam(0)
+			if diff := cmp.Diff(ref.Params[:ref.Length], p.Params[:p.Length]); diff != "" {
+				t.Errorf("ResetZdm not equivalent to Reset+AddParam(0) (-ref +zdm):\n%s", diff)
+			}
+			if ref.Length != p.Length {
+				t.Errorf("Length mismatch: ref=%d zdm=%d", ref.Length, p.Length)
+			}
+		})
+	}
+}
+
