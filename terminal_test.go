@@ -843,3 +843,251 @@ func TestTerminalRegisterOscHandler(t *testing.T) {
 	}
 }
 
+// fillScrollback writes enough lines to the terminal to create scrollback content.
+func fillScrollback(term *Terminal, lineCount int) {
+	for i := range lineCount {
+		term.WriteString(fmt.Sprintf("line %d\r\n", i))
+	}
+}
+
+func TestTerminalScrollLines(t *testing.T) {
+	t.Parallel()
+
+	type Expectation struct {
+		YDisp int
+		YBase int
+	}
+
+	term := newTestTerminal(80, 5)
+	fillScrollback(term, 20)
+
+	yBase := term.Buffer().YBase
+
+	// Scroll up 3 lines
+	term.ScrollLines(-3)
+
+	got := Expectation{
+		YDisp: term.Buffer().YDisp,
+		YBase: term.Buffer().YBase,
+	}
+	expected := Expectation{
+		YDisp: yBase - 3,
+		YBase: yBase,
+	}
+	if diff := cmp.Diff(expected, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestTerminalScrollLinesDown(t *testing.T) {
+	t.Parallel()
+
+	term := newTestTerminal(80, 5)
+	fillScrollback(term, 20)
+
+	// Scroll up then back down
+	term.ScrollLines(-5)
+	term.ScrollLines(5)
+
+	if term.Buffer().YDisp != term.Buffer().YBase {
+		t.Errorf("YDisp = %d, want %d (YBase)", term.Buffer().YDisp, term.Buffer().YBase)
+	}
+}
+
+func TestTerminalScrollPages(t *testing.T) {
+	t.Parallel()
+
+	term := newTestTerminal(80, 5)
+	fillScrollback(term, 30)
+
+	yBase := term.Buffer().YBase
+
+	// Scroll up 2 pages (2 * 5 rows = 10 lines)
+	term.ScrollPages(-2)
+
+	expected := yBase - 10
+	if term.Buffer().YDisp != expected {
+		t.Errorf("YDisp = %d, want %d", term.Buffer().YDisp, expected)
+	}
+}
+
+func TestTerminalScrollToTop(t *testing.T) {
+	t.Parallel()
+
+	term := newTestTerminal(80, 5)
+	fillScrollback(term, 20)
+
+	term.ScrollToTop()
+
+	if term.Buffer().YDisp != 0 {
+		t.Errorf("YDisp = %d, want 0", term.Buffer().YDisp)
+	}
+}
+
+func TestTerminalScrollToBottom(t *testing.T) {
+	t.Parallel()
+
+	term := newTestTerminal(80, 5)
+	fillScrollback(term, 20)
+
+	// Scroll to top first, then back to bottom
+	term.ScrollToTop()
+	term.ScrollToBottom()
+
+	if term.Buffer().YDisp != term.Buffer().YBase {
+		t.Errorf("YDisp = %d, want %d (YBase)", term.Buffer().YDisp, term.Buffer().YBase)
+	}
+}
+
+func TestTerminalScrollToLine(t *testing.T) {
+	t.Parallel()
+
+	term := newTestTerminal(80, 5)
+	fillScrollback(term, 20)
+
+	term.ScrollToLine(5)
+
+	if term.Buffer().YDisp != 5 {
+		t.Errorf("YDisp = %d, want 5", term.Buffer().YDisp)
+	}
+}
+
+func TestTerminalScrollToLineClamps(t *testing.T) {
+	t.Parallel()
+
+	term := newTestTerminal(80, 5)
+	fillScrollback(term, 20)
+
+	// Scroll to a line beyond YBase — should clamp to YBase
+	term.ScrollToLine(9999)
+
+	if term.Buffer().YDisp != term.Buffer().YBase {
+		t.Errorf("YDisp = %d, want %d (YBase)", term.Buffer().YDisp, term.Buffer().YBase)
+	}
+}
+
+func TestTerminalScrollNoScrollback(t *testing.T) {
+	t.Parallel()
+
+	term := newTestTerminal(80, 5)
+	// No scrollback content — scrolling should be a no-op
+	term.ScrollLines(-5)
+
+	if term.Buffer().YDisp != 0 {
+		t.Errorf("YDisp = %d, want 0", term.Buffer().YDisp)
+	}
+}
+
+func TestTerminalClear(t *testing.T) {
+	t.Parallel()
+
+	type Expectation struct {
+		YBase           int
+		YDisp           int
+		IsUserScrolling bool
+	}
+
+	term := newTestTerminal(80, 5)
+	fillScrollback(term, 20)
+
+	// Scroll up to simulate user scrolling
+	term.ScrollToTop()
+
+	term.Clear()
+
+	got := Expectation{
+		YBase:           term.Buffer().YBase,
+		YDisp:           term.Buffer().YDisp,
+		IsUserScrolling: term.bufferService.IsUserScrolling,
+	}
+	expected := Expectation{
+		YBase:           0,
+		YDisp:           0,
+		IsUserScrolling: false,
+	}
+	if diff := cmp.Diff(expected, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestTerminalClearEmptyTerminal(t *testing.T) {
+	t.Parallel()
+
+	term := newTestTerminal(80, 5)
+	// Clear on empty terminal should be a no-op (no panic)
+	term.Clear()
+
+	if term.Buffer().YBase != 0 {
+		t.Errorf("YBase = %d, want 0", term.Buffer().YBase)
+	}
+}
+
+func TestTerminalClearFiresScrollEvent(t *testing.T) {
+	t.Parallel()
+
+	term := newTestTerminal(80, 5)
+	fillScrollback(term, 20)
+
+	scrollFired := false
+	term.OnScroll(func(int) { scrollFired = true })
+
+	term.Clear()
+
+	if !scrollFired {
+		t.Error("expected OnScroll to fire after Clear()")
+	}
+}
+
+func TestTerminalAddMarker(t *testing.T) {
+	t.Parallel()
+
+	term := newTestTerminal(80, 24)
+	term.WriteString("hello\r\nworld\r\n")
+
+	// Cursor is at row 2 (0-based), add marker at cursor position
+	marker := term.AddMarker(0)
+	if marker == nil {
+		t.Fatal("AddMarker returned nil")
+	}
+
+	expectedLine := term.Buffer().YBase + term.CursorY()
+	if marker.Line != expectedLine {
+		t.Errorf("marker.Line = %d, want %d", marker.Line, expectedLine)
+	}
+}
+
+func TestTerminalAddMarkerWithOffset(t *testing.T) {
+	t.Parallel()
+
+	term := newTestTerminal(80, 24)
+	term.WriteString("line1\r\nline2\r\nline3\r\n")
+
+	// Add marker 1 line above cursor
+	marker := term.AddMarker(-1)
+	if marker == nil {
+		t.Fatal("AddMarker returned nil")
+	}
+
+	expectedLine := term.Buffer().YBase + term.CursorY() - 1
+	if marker.Line != expectedLine {
+		t.Errorf("marker.Line = %d, want %d", marker.Line, expectedLine)
+	}
+}
+
+func TestTerminalScrollLinesFiresEvent(t *testing.T) {
+	t.Parallel()
+
+	term := newTestTerminal(80, 5)
+	fillScrollback(term, 20)
+
+	scrollEvents := 0
+	term.OnScroll(func(int) { scrollEvents++ })
+
+	term.ScrollLines(-3)
+
+	if scrollEvents != 1 {
+		t.Errorf("scroll events = %d, want 1", scrollEvents)
+	}
+}
+
+

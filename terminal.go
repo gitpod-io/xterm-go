@@ -277,6 +277,67 @@ func (t *Terminal) ScrollTop() int { return t.bufferService.Buffer().ScrollTop }
 // ScrollBottom returns the bottom of the scroll region (0-based).
 func (t *Terminal) ScrollBottom() int { return t.bufferService.Buffer().ScrollBottom }
 
+// ScrollLines scrolls the viewport by disp lines (negative = up, positive = down).
+func (t *Terminal) ScrollLines(disp int) {
+	t.bufferService.ScrollLines(disp, false)
+}
+
+// ScrollPages scrolls the viewport by pageCount pages.
+func (t *Terminal) ScrollPages(pageCount int) {
+	t.ScrollLines(pageCount * t.bufferService.Rows)
+}
+
+// ScrollToTop scrolls the viewport to the top of the scrollback.
+func (t *Terminal) ScrollToTop() {
+	t.ScrollLines(-t.bufferService.Buffer().YDisp)
+}
+
+// ScrollToBottom scrolls the viewport to the bottom (latest output).
+func (t *Terminal) ScrollToBottom() {
+	t.ScrollLines(t.bufferService.Buffer().YBase - t.bufferService.Buffer().YDisp)
+}
+
+// ScrollToLine scrolls the viewport so that the given line is at the top.
+func (t *Terminal) ScrollToLine(line int) {
+	t.ScrollLines(line - t.bufferService.Buffer().YDisp)
+}
+
+// Clear clears the viewport and scrollback buffer, preserving the line the
+// cursor is on. Ported from xterm.js src/headless/Terminal.ts clear().
+func (t *Terminal) Clear() {
+	buf := t.bufferService.Buffer()
+	if buf.YBase == 0 && buf.Y == 0 {
+		// Nothing to clear.
+		return
+	}
+
+	// Clear rows above the cursor.
+	for i := buf.YBase + buf.Y - 1; i >= buf.YBase; i-- {
+		line := buf.Lines.Get(i)
+		if line != nil && line.GetTrimmedLength() != 0 {
+			break
+		}
+		if i > buf.YBase+buf.Y-1 {
+			continue
+		}
+		buf.Lines.Set(i, buf.GetBlankLine(nil, false))
+	}
+
+	// Trim scrollback.
+	buf.Lines.TrimStart(buf.YBase)
+	buf.YBase = 0
+	buf.YDisp = 0
+	t.bufferService.IsUserScrolling = false
+
+	t.OnScrollEmitter.Fire(buf.YDisp)
+}
+
+// AddMarker creates a marker at the cursor position plus the given offset.
+func (t *Terminal) AddMarker(cursorYOffset int) *Marker {
+	buf := t.bufferService.Buffer()
+	return buf.AddMarker(buf.YBase + buf.Y + cursorYOffset)
+}
+
 // Scrollback returns the scrollback buffer size.
 func (t *Terminal) Scrollback() int { return t.optionsService.Options.Scrollback }
 
