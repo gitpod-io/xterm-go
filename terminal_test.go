@@ -624,6 +624,104 @@ func TestTerminalRegisterApcHandlerDispose(t *testing.T) {
 	}
 }
 
+func TestTerminalOnCursorMove(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	moveCount := 0
+	term.OnCursorMove(func() { moveCount++ })
+	// CUP (cursor position) triggers a cursor move event.
+	term.WriteString("\x1b[5;10H")
+	if moveCount == 0 {
+		t.Error("expected OnCursorMove to fire, got 0 events")
+	}
+}
+
+func TestTerminalOnCursorMoveDispose(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	count := 0
+	d := term.OnCursorMove(func() { count++ })
+	term.WriteString("\x1b[2;1H")
+	if count == 0 {
+		t.Fatal("expected OnCursorMove to fire")
+	}
+	first := count
+	d.Dispose()
+	term.WriteString("\x1b[3;1H")
+	if count != first {
+		t.Errorf("OnCursorMove fired after Dispose: count went from %d to %d", first, count)
+	}
+}
+
+func TestTerminalOnResize(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	var events []BufferResizeEvent
+	term.OnResize(func(e BufferResizeEvent) { events = append(events, e) })
+	term.Resize(40, 10)
+	if len(events) == 0 {
+		t.Fatal("expected OnResize to fire, got no events")
+	}
+	got := events[len(events)-1]
+	if got.Cols != 40 || got.Rows != 10 {
+		t.Errorf("OnResize event = {Cols:%d, Rows:%d}, want {Cols:40, Rows:10}", got.Cols, got.Rows)
+	}
+}
+
+func TestTerminalOnResizeDispose(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	count := 0
+	d := term.OnResize(func(BufferResizeEvent) { count++ })
+	term.Resize(40, 10)
+	if count == 0 {
+		t.Fatal("expected OnResize to fire")
+	}
+	first := count
+	d.Dispose()
+	term.Resize(60, 20)
+	if count != first {
+		t.Errorf("OnResize fired after Dispose: count went from %d to %d", first, count)
+	}
+}
+
+func TestTerminalOnScroll(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(20, 5)
+	var scrollPositions []int
+	term.OnScroll(func(pos int) { scrollPositions = append(scrollPositions, pos) })
+	// Write enough lines to trigger scrolling in a 5-row terminal.
+	for i := range 8 {
+		term.WriteString(fmt.Sprintf("Line%d\r\n", i))
+	}
+	if len(scrollPositions) == 0 {
+		t.Fatal("expected OnScroll to fire, got no events")
+	}
+}
+
+func TestTerminalOnScrollDispose(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(20, 5)
+	count := 0
+	d := term.OnScroll(func(int) { count++ })
+	// Trigger scrolling.
+	for i := range 8 {
+		term.WriteString(fmt.Sprintf("Line%d\r\n", i))
+	}
+	if count == 0 {
+		t.Fatal("expected OnScroll to fire")
+	}
+	first := count
+	d.Dispose()
+	// Write more to trigger additional scrolling.
+	for i := range 5 {
+		term.WriteString(fmt.Sprintf("More%d\r\n", i))
+	}
+	if count != first {
+		t.Errorf("OnScroll fired after Dispose: count went from %d to %d", first, count)
+	}
+}
+
 func TestTerminalTabStops(t *testing.T) {
 	t.Parallel()
 	term := newTestTerminal(80, 24)

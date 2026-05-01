@@ -200,6 +200,21 @@ func (t *Terminal) OnLineFeed(fn func()) Disposable {
 	return t.OnLineFeedEmitter.Event(func(struct{}) { fn() })
 }
 
+// OnCursorMove registers a callback for cursor move events.
+func (t *Terminal) OnCursorMove(fn func()) Disposable {
+	return t.OnCursorMoveEmitter.Event(func(struct{}) { fn() })
+}
+
+// OnResize registers a callback for terminal resize events.
+func (t *Terminal) OnResize(fn func(BufferResizeEvent)) Disposable {
+	return t.OnResizeEmitter.Event(fn)
+}
+
+// OnScroll registers a callback for scroll events.
+func (t *Terminal) OnScroll(fn func(int)) Disposable {
+	return t.OnScrollEmitter.Event(fn)
+}
+
 // OnRender registers a callback fired when terminal rows are dirty.
 func (t *Terminal) OnRender(fn func(RowRange)) Disposable {
 	return t.OnRenderEmitter.Event(fn)
