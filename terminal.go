@@ -226,6 +226,28 @@ func (t *Terminal) RegisterApcHandler(ident int, handler func(data string) bool)
 	return t.inputHandler.parser.RegisterApcHandler(ident, NewApcStringHandler(handler))
 }
 
+// RegisterCsiHandler registers a custom handler for a CSI escape sequence.
+// The handler returns true to stop the handler chain from bubbling further.
+func (t *Terminal) RegisterCsiHandler(id FunctionIdentifier, handler CsiHandler) Disposable {
+	return t.inputHandler.parser.RegisterCsiHandler(id, handler)
+}
+
+// RegisterEscHandler registers a custom handler for an ESC escape sequence.
+// The handler returns true to stop the handler chain from bubbling further.
+func (t *Terminal) RegisterEscHandler(id FunctionIdentifier, handler EscHandler) Disposable {
+	return t.inputHandler.parser.RegisterEscHandler(id, handler)
+}
+
+// RegisterDcsHandler registers a custom handler for a DCS escape sequence.
+func (t *Terminal) RegisterDcsHandler(id FunctionIdentifier, handler DcsHandler) Disposable {
+	return t.inputHandler.parser.RegisterDcsHandler(id, handler)
+}
+
+// RegisterOscHandler registers a custom handler for an OSC escape sequence.
+func (t *Terminal) RegisterOscHandler(ident int, handler OscHandler) Disposable {
+	return t.inputHandler.parser.RegisterOscHandler(ident, handler)
+}
+
 // NormalBuffer returns the normal (primary) buffer.
 func (t *Terminal) NormalBuffer() *Buffer { return t.bufferService.Buffers.Normal() }
 

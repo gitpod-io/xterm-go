@@ -735,3 +735,111 @@ func TestTerminalTabStops(t *testing.T) {
 		t.Errorf("CursorX() = %d, want 9 (after tab + B)", term.CursorX())
 	}
 }
+
+func TestTerminalRegisterCsiHandler(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+
+	var called bool
+	var gotParams []int32
+	d := term.RegisterCsiHandler(FunctionIdentifier{Final: 'Z'}, func(params *Params) bool {
+		called = true
+		gotParams = make([]int32, params.Length)
+		copy(gotParams, params.Params[:params.Length])
+		return true
+	})
+
+	// Send CSI 1;2 Z
+	term.WriteString("\x1b[1;2Z")
+	if !called {
+		t.Fatal("CSI handler was not called")
+	}
+	if len(gotParams) < 2 || gotParams[0] != 1 || gotParams[1] != 2 {
+		t.Fatalf("got params %v, want [1 2]", gotParams)
+	}
+
+	// Dispose and verify handler no longer fires.
+	called = false
+	d.Dispose()
+	term.WriteString("\x1b[1;2Z")
+	if called {
+		t.Fatal("CSI handler was called after Dispose")
+	}
+}
+
+func TestTerminalRegisterEscHandler(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+
+	var called bool
+	d := term.RegisterEscHandler(FunctionIdentifier{Intermediates: "#", Final: '9'}, func() bool {
+		called = true
+		return true
+	})
+
+	// Send ESC # 9
+	term.WriteString("\x1b#9")
+	if !called {
+		t.Fatal("ESC handler was not called")
+	}
+
+	// Dispose and verify handler no longer fires.
+	called = false
+	d.Dispose()
+	term.WriteString("\x1b#9")
+	if called {
+		t.Fatal("ESC handler was called after Dispose")
+	}
+}
+
+func TestTerminalRegisterDcsHandler(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+
+	var gotData string
+	d := term.RegisterDcsHandler(FunctionIdentifier{Final: 'z'}, NewDcsStringHandler(func(data string, params *Params) bool {
+		gotData = data
+		return true
+	}))
+
+	// Send DCS z <payload> ST (DCS = ESC P, ST = ESC \)
+	term.WriteString("\x1bPz" + "hello" + "\x1b\\")
+	if gotData != "hello" {
+		t.Fatalf("DCS handler got data %q, want %q", gotData, "hello")
+	}
+
+	// Dispose and verify handler no longer fires.
+	gotData = ""
+	d.Dispose()
+	term.WriteString("\x1bPz" + "world" + "\x1b\\")
+	if gotData != "" {
+		t.Fatalf("DCS handler got data %q after Dispose, want empty", gotData)
+	}
+}
+
+func TestTerminalRegisterOscHandler(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+
+	var gotData string
+	// Use a high OSC number unlikely to conflict with built-in handlers.
+	d := term.RegisterOscHandler(9999, NewOscStringHandler(func(data string) bool {
+		gotData = data
+		return true
+	}))
+
+	// Send OSC 9999 ; payload BEL
+	term.WriteString("\x1b]9999;test-payload\x07")
+	if gotData != "test-payload" {
+		t.Fatalf("OSC handler got data %q, want %q", gotData, "test-payload")
+	}
+
+	// Dispose and verify handler no longer fires.
+	gotData = ""
+	d.Dispose()
+	term.WriteString("\x1b]9999;after-dispose\x07")
+	if gotData != "" {
+		t.Fatalf("OSC handler got data %q after Dispose, want empty", gotData)
+	}
+}
+
