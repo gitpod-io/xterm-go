@@ -21,22 +21,22 @@ func (h *InputHandler) charAttributes(params *Params) bool {
 		switch {
 		case p >= 30 && p <= 37:
 			// fg color 8
-			attr.Fg &= ^(AttrCMMask | AttrPColorMask)
+			attr.Fg &= ^(AttrCMMask | AttrRGBMask)
 			attr.Fg |= AttrCMP16 | uint32(p-30)
 
 		case p >= 40 && p <= 47:
 			// bg color 8
-			attr.Bg &= ^(AttrCMMask | AttrPColorMask)
+			attr.Bg &= ^(AttrCMMask | AttrRGBMask)
 			attr.Bg |= AttrCMP16 | uint32(p-40)
 
 		case p >= 90 && p <= 97:
 			// fg color 16 (bright)
-			attr.Fg &= ^(AttrCMMask | AttrPColorMask)
+			attr.Fg &= ^(AttrCMMask | AttrRGBMask)
 			attr.Fg |= AttrCMP16 | uint32(p-90) | 8
 
 		case p >= 100 && p <= 107:
 			// bg color 16 (bright)
-			attr.Bg &= ^(AttrCMMask | AttrPColorMask)
+			attr.Bg &= ^(AttrCMMask | AttrRGBMask)
 			attr.Bg |= AttrCMP16 | uint32(p-100) | 8
 
 		case p == 0:
@@ -120,13 +120,13 @@ func (h *InputHandler) charAttributes(params *Params) bool {
 			// reset fg
 			attr.Fg &= ^(AttrCMMask | AttrRGBMask)
 			def := DefaultAttrData()
-			attr.Fg |= def.Fg & (AttrPColorMask | AttrRGBMask)
+			attr.Fg |= def.Fg & AttrRGBMask
 
 		case p == 49:
 			// reset bg
 			attr.Bg &= ^(AttrCMMask | AttrRGBMask)
 			def := DefaultAttrData()
-			attr.Bg |= def.Bg & (AttrPColorMask | AttrRGBMask)
+			attr.Bg |= def.Bg & AttrRGBMask
 
 		case p == 38 || p == 48 || p == 58:
 			// extended color (fg/bg/underline)
@@ -171,7 +171,7 @@ func (h *InputHandler) updateAttrColor(color uint32, mode int32, c1, c2, c3 int3
 		color &= ^AttrRGBMask
 		color |= FromColorRGB(ColorRGB{uint8(c1), uint8(c2), uint8(c3)})
 	case 5: // P256
-		color &= ^(AttrCMMask | AttrPColorMask)
+		color &= ^(AttrCMMask | AttrRGBMask)
 		color |= AttrCMP256 | (uint32(c1) & 0xFF)
 	}
 	return color

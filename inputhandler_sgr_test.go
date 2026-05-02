@@ -444,6 +444,94 @@ func TestSGR_SGR0_Preserves_URLId(t *testing.T) {
 	}
 }
 
+func TestSGR_RGBToP16_ClearsStaleRGBBits_Fg(t *testing.T) {
+	t.Parallel()
+	h := newTestHandler()
+	// Set RGB fg #FF8040
+	h.ParseString("\x1b[38;2;255;128;64m")
+	// Switch to P16 red (index 1)
+	h.ParseString("\x1b[31m")
+
+	// The full 24-bit color field must be clean — no stale RGB bytes
+	colorBits := h.curAttrData.Fg & AttrRGBMask
+	wantColor := uint32(1) // palette index 1 (red)
+	if colorBits != wantColor {
+		t.Errorf("stale RGB bits in Fg: got 0x%06x, want 0x%06x", colorBits, wantColor)
+	}
+	if cm := h.curAttrData.Fg & AttrCMMask; cm != AttrCMP16 {
+		t.Errorf("wrong color mode: got 0x%x, want 0x%x (P16)", cm, AttrCMP16)
+	}
+}
+
+func TestSGR_RGBToP16_ClearsStaleRGBBits_Bg(t *testing.T) {
+	t.Parallel()
+	h := newTestHandler()
+	// Set RGB bg #FF8040
+	h.ParseString("\x1b[48;2;255;128;64m")
+	// Switch to P16 green bg (index 2)
+	h.ParseString("\x1b[42m")
+
+	colorBits := h.curAttrData.Bg & AttrRGBMask
+	wantColor := uint32(2)
+	if colorBits != wantColor {
+		t.Errorf("stale RGB bits in Bg: got 0x%06x, want 0x%06x", colorBits, wantColor)
+	}
+	if cm := h.curAttrData.Bg & AttrCMMask; cm != AttrCMP16 {
+		t.Errorf("wrong color mode: got 0x%x, want 0x%x (P16)", cm, AttrCMP16)
+	}
+}
+
+func TestSGR_RGBToP16Bright_ClearsStaleRGBBits(t *testing.T) {
+	t.Parallel()
+	h := newTestHandler()
+	// Set RGB fg
+	h.ParseString("\x1b[38;2;200;100;50m")
+	// Switch to bright red fg (SGR 91 = index 1|8 = 9)
+	h.ParseString("\x1b[91m")
+
+	colorBits := h.curAttrData.Fg & AttrRGBMask
+	wantColor := uint32(1) | 8
+	if colorBits != wantColor {
+		t.Errorf("stale RGB bits in Fg after bright: got 0x%06x, want 0x%06x", colorBits, wantColor)
+	}
+}
+
+func TestSGR_RGBToP256_ClearsStaleRGBBits_Fg(t *testing.T) {
+	t.Parallel()
+	h := newTestHandler()
+	// Set RGB fg #AABBCC
+	h.ParseString("\x1b[38;2;170;187;204m")
+	// Switch to P256 color 196
+	h.ParseString("\x1b[38;5;196m")
+
+	colorBits := h.curAttrData.Fg & AttrRGBMask
+	wantColor := uint32(196)
+	if colorBits != wantColor {
+		t.Errorf("stale RGB bits in Fg: got 0x%06x, want 0x%06x", colorBits, wantColor)
+	}
+	if cm := h.curAttrData.Fg & AttrCMMask; cm != AttrCMP256 {
+		t.Errorf("wrong color mode: got 0x%x, want 0x%x (P256)", cm, AttrCMP256)
+	}
+}
+
+func TestSGR_RGBToP256_ClearsStaleRGBBits_Bg(t *testing.T) {
+	t.Parallel()
+	h := newTestHandler()
+	// Set RGB bg
+	h.ParseString("\x1b[48;2;170;187;204m")
+	// Switch to P256 bg color 42
+	h.ParseString("\x1b[48;5;42m")
+
+	colorBits := h.curAttrData.Bg & AttrRGBMask
+	wantColor := uint32(42)
+	if colorBits != wantColor {
+		t.Errorf("stale RGB bits in Bg: got 0x%06x, want 0x%06x", colorBits, wantColor)
+	}
+	if cm := h.curAttrData.Bg & AttrCMMask; cm != AttrCMP256 {
+		t.Errorf("wrong color mode: got 0x%x, want 0x%x (P256)", cm, AttrCMP256)
+	}
+}
+
 func TestSGR_MultipleResets(t *testing.T) {
 	t.Parallel()
 	h := newTestHandler()
