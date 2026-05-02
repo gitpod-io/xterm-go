@@ -248,6 +248,11 @@ func NewInputHandler(
 	p.RegisterCsiHandler(FunctionIdentifier{Prefix: '?', Final: 'h'}, h.setModePrivate)
 	p.RegisterCsiHandler(FunctionIdentifier{Prefix: '?', Final: 'l'}, h.resetModePrivate)
 
+	// Fallback handlers (upstream uses these for debug logging)
+	p.SetApcHandlerFallback(func(ident int, action string, payload ...interface{}) {
+		// no-op: upstream logs "Unknown APC code" here
+	})
+
 	// DCS handlers
 	p.RegisterDcsHandler(FunctionIdentifier{Intermediates: "$", Final: 'q'}, NewDcsStringHandler(h.requestStatusString))
 

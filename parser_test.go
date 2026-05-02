@@ -69,7 +69,7 @@ func TestVT500Transitions(t *testing.T) {
 		{"'[' in ESCAPE enters CSI_ENTRY", ParserStateEscape, 0x5b, Expectation{ParserActionClear, ParserStateCSIEntry}},
 		{"']' in ESCAPE enters OSC_STRING", ParserStateEscape, 0x5d, Expectation{ParserActionOSCStart, ParserStateOSCString}},
 		{"'P' in ESCAPE enters DCS_ENTRY", ParserStateEscape, 0x50, Expectation{ParserActionClear, ParserStateDCSEntry}},
-		{"'_' in ESCAPE enters APC_STRING", ParserStateEscape, 0x5f, Expectation{ParserActionAPCStart, ParserStateAPCString}},
+		{"'_' in ESCAPE enters APC_ENTRY", ParserStateEscape, 0x5f, Expectation{ParserActionClear, ParserStateAPCEntry}},
 		{"printable in GROUND prints", ParserStateGround, 0x41, Expectation{ParserActionPrint, ParserStateGround}},
 		{"LF in GROUND executes", ParserStateGround, 0x0a, Expectation{ParserActionExecute, ParserStateGround}},
 		{"digit in CSI_ENTRY -> CSI_PARAM", ParserStateCSIEntry, 0x30, Expectation{ParserActionParam, ParserStateCSIParam}},

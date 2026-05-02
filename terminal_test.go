@@ -594,7 +594,7 @@ func TestTerminalRegisterApcHandler(t *testing.T) {
 	term := newTestTerminal(80, 24)
 	var received string
 	// Register handler for APC identifier 'G' (0x47) — used by Kitty graphics protocol.
-	term.RegisterApcHandler(0x47, func(data string) bool {
+	term.RegisterApcHandler(FunctionIdentifier{Final: 'G'}, func(data string) bool {
 		received = data
 		return true
 	})
@@ -609,7 +609,7 @@ func TestTerminalRegisterApcHandlerDispose(t *testing.T) {
 	t.Parallel()
 	term := newTestTerminal(80, 24)
 	callCount := 0
-	d := term.RegisterApcHandler(0x47, func(data string) bool {
+	d := term.RegisterApcHandler(FunctionIdentifier{Final: 'G'}, func(data string) bool {
 		callCount++
 		return true
 	})

@@ -81,7 +81,7 @@ func buildVT500TransitionTable() *TransitionTable {
 		table.Add(0x9c, state, ParserActionIgnore, ParserStateGround)                       // ST as terminator
 		table.Add(0x9d, state, ParserActionOSCStart, ParserStateOSCString)                  // OSC
 		table.AddMany([]int{0x98, 0x9e}, state, ParserActionIgnore, ParserStateSOSPMString) // SOS, PM
-		table.Add(0x9f, state, ParserActionAPCStart, ParserStateAPCString)                  // APC
+		table.Add(0x9f, state, ParserActionClear, ParserStateAPCEntry)                       // APC
 		table.Add(0x9b, state, ParserActionClear, ParserStateCSIEntry)                      // CSI
 		table.Add(0x90, state, ParserActionClear, ParserStateDCSEntry)                      // DCS
 	}
@@ -120,11 +120,20 @@ func buildVT500TransitionTable() *TransitionTable {
 	table.Add(0x7f, ParserStateSOSPMString, ParserActionIgnore, ParserStateSOSPMString)
 
 	// --- APC ---
-	table.Add(0x5f, ParserStateEscape, ParserActionAPCStart, ParserStateAPCString)
-	table.AddMany(printables, ParserStateAPCString, ParserActionAPCPut, ParserStateAPCString)
-	table.AddMany(executables, ParserStateAPCString, ParserActionIgnore, ParserStateAPCString)
-	table.Add(0x7f, ParserStateAPCString, ParserActionIgnore, ParserStateAPCString)
-	table.AddMany([]int{0x1b, 0x9c, 0x18, 0x1a}, ParserStateAPCString, ParserActionAPCEnd, ParserStateGround)
+	table.Add(0x5f, ParserStateEscape, ParserActionClear, ParserStateAPCEntry)
+	table.AddMany(executables, ParserStateAPCEntry, ParserActionIgnore, ParserStateAPCEntry)
+	table.Add(0x7f, ParserStateAPCEntry, ParserActionIgnore, ParserStateAPCEntry)
+	table.AddMany(r(0x20, 0x30), ParserStateAPCEntry, ParserActionCollect, ParserStateAPCIntermediate)
+	table.AddMany(r(0x30, 0x7f), ParserStateAPCEntry, ParserActionAPCStart, ParserStateAPCPassthrough)
+	table.AddMany(r(0x30, 0x7f), ParserStateAPCIntermediate, ParserActionAPCStart, ParserStateAPCPassthrough)
+	table.AddMany(executables, ParserStateAPCIntermediate, ParserActionIgnore, ParserStateAPCIntermediate)
+	table.AddMany(r(0x20, 0x30), ParserStateAPCIntermediate, ParserActionCollect, ParserStateAPCIntermediate)
+	table.Add(0x7f, ParserStateAPCIntermediate, ParserActionIgnore, ParserStateAPCIntermediate)
+	table.AddMany(printables, ParserStateAPCPassthrough, ParserActionAPCPut, ParserStateAPCPassthrough)
+	table.AddMany(executables, ParserStateAPCPassthrough, ParserActionIgnore, ParserStateAPCPassthrough)
+	table.AddMany(r(0x08, 0x0e), ParserStateAPCPassthrough, ParserActionAPCPut, ParserStateAPCPassthrough)
+	table.Add(0x7f, ParserStateAPCPassthrough, ParserActionIgnore, ParserStateAPCPassthrough)
+	table.AddMany([]int{0x1b, 0x9c, 0x18, 0x1a}, ParserStateAPCPassthrough, ParserActionAPCEnd, ParserStateGround)
 
 	// --- CSI entries ---
 	table.Add(0x5b, ParserStateEscape, ParserActionClear, ParserStateCSIEntry)
@@ -196,7 +205,7 @@ func buildVT500TransitionTable() *TransitionTable {
 	table.Add(nonASCIIPrintable, ParserStateCSIIgnore, ParserActionIgnore, ParserStateCSIIgnore)
 	table.Add(nonASCIIPrintable, ParserStateDCSIgnore, ParserActionIgnore, ParserStateDCSIgnore)
 	table.Add(nonASCIIPrintable, ParserStateDCSPassthrough, ParserActionDCSPut, ParserStateDCSPassthrough)
-	table.Add(nonASCIIPrintable, ParserStateAPCString, ParserActionAPCPut, ParserStateAPCString)
+	table.Add(nonASCIIPrintable, ParserStateAPCPassthrough, ParserActionAPCPut, ParserStateAPCPassthrough)
 
 	return table
 }

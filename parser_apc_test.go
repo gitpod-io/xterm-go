@@ -31,15 +31,15 @@ func TestApcParserStartPutEnd(t *testing.T) {
 	type TestCase struct {
 		Name     string
 		Ident    int
-		Input    string
+		Payload  string
 		Success  bool
 		Expected Expectation
 	}
 	tests := []TestCase{
 		{
-			Name:    "basic lifecycle with char ident",
+			Name:    "basic lifecycle with payload",
 			Ident:   'G',
-			Input:   "Gf=100,a=T;base64data",
+			Payload: "f=100,a=T;base64data",
 			Success: true,
 			Expected: Expectation{
 				Starts: 1,
@@ -48,9 +48,9 @@ func TestApcParserStartPutEnd(t *testing.T) {
 			},
 		},
 		{
-			Name:    "ident only no payload",
+			Name:    "no payload",
 			Ident:   'X',
-			Input:   "X",
+			Payload: "",
 			Success: true,
 			Expected: Expectation{
 				Starts: 1,
@@ -61,7 +61,7 @@ func TestApcParserStartPutEnd(t *testing.T) {
 		{
 			Name:    "unsuccessful end",
 			Ident:   'G',
-			Input:   "Gdata",
+			Payload: "data",
 			Success: false,
 			Expected: Expectation{
 				Starts: 1,
@@ -77,9 +77,11 @@ func TestApcParserStartPutEnd(t *testing.T) {
 			h := &testApcHandler{endRet: true}
 			p.RegisterHandler(tc.Ident, h)
 
-			data := toUint32(tc.Input)
-			p.Start()
-			p.Put(data, 0, len(data))
+			p.Start(tc.Ident)
+			if tc.Payload != "" {
+				data := toUint32(tc.Payload)
+				p.Put(data, 0, len(data))
+			}
 			p.End(tc.Success)
 
 			got := Expectation{Starts: h.starts, Puts: h.puts, Ends: h.ends}
@@ -105,8 +107,8 @@ func TestApcParserHandlerDispatch(t *testing.T) {
 	p.RegisterHandler('G', h1)
 	p.RegisterHandler('G', h2)
 
-	data := toUint32("Gpayload")
-	p.Start()
+	p.Start('G')
+	data := toUint32("payload")
 	p.Put(data, 0, len(data))
 	p.End(true)
 
@@ -138,8 +140,8 @@ func TestApcParserFallback(t *testing.T) {
 		calls = append(calls, FallbackCall{Ident: ident, Action: action})
 	})
 
-	data := toUint32("Zpayload")
-	p.Start()
+	p.Start('Z')
+	data := toUint32("payload")
 	p.Put(data, 0, len(data))
 	p.End(true)
 
@@ -161,8 +163,8 @@ func TestApcParserDispose(t *testing.T) {
 	d := p.RegisterHandler('G', h)
 	d.Dispose()
 
-	data := toUint32("Gtest")
-	p.Start()
+	p.Start('G')
+	data := toUint32("test")
 	p.Put(data, 0, len(data))
 	p.End(true)
 
@@ -177,8 +179,8 @@ func TestApcParserReset(t *testing.T) {
 	h := &testApcHandler{}
 	p.RegisterHandler('G', h)
 
-	data := toUint32("Gpartial")
-	p.Start()
+	p.Start('G')
+	data := toUint32("partial")
 	p.Put(data, 0, len(data))
 	p.Reset()
 
@@ -192,21 +194,6 @@ func TestApcParserReset(t *testing.T) {
 	}
 }
 
-func TestApcParserEmptySequence(t *testing.T) {
-	t.Parallel()
-	// Empty APC (end in ID state) should just reset without calling handlers
-	p := NewApcParser()
-	h := &testApcHandler{}
-	p.RegisterHandler('G', h)
-
-	p.Start()
-	p.End(true)
-
-	if h.starts != 0 {
-		t.Errorf("handler should not start on empty APC, got %d starts", h.starts)
-	}
-}
-
 func TestApcParserClearHandler(t *testing.T) {
 	t.Parallel()
 	p := NewApcParser()
@@ -214,8 +201,8 @@ func TestApcParserClearHandler(t *testing.T) {
 	p.RegisterHandler('G', h)
 	p.ClearHandler('G')
 
-	data := toUint32("Gtest")
-	p.Start()
+	p.Start('G')
+	data := toUint32("test")
 	p.Put(data, 0, len(data))
 	p.End(true)
 
@@ -232,8 +219,8 @@ func TestApcParserEndConsumption(t *testing.T) {
 	p.RegisterHandler('G', h1)
 	p.RegisterHandler('G', h2)
 
-	data := toUint32("Gdata")
-	p.Start()
+	p.Start('G')
+	data := toUint32("data")
 	p.Put(data, 0, len(data))
 	p.End(true)
 
@@ -322,10 +309,8 @@ func TestApcParserMultiplePuts(t *testing.T) {
 	h := &testApcHandler{endRet: true}
 	p.RegisterHandler('G', h)
 
-	// Send ident and payload in separate Put calls
-	id := toUint32("G")
-	p.Start()
-	p.Put(id, 0, len(id))
+	// Start with ident, then send payload in separate Put calls
+	p.Start('G')
 
 	p1 := toUint32("hel")
 	p.Put(p1, 0, len(p1))
@@ -341,6 +326,32 @@ func TestApcParserMultiplePuts(t *testing.T) {
 	}
 	got := Expectation{Starts: h.starts, Puts: h.puts}
 	expected := Expectation{Starts: 1, Puts: []string{"hel", "lo"}}
+	if diff := cmp.Diff(expected, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestApcParserFunctionIdentifier(t *testing.T) {
+	t.Parallel()
+	// Test that APC handler registration via FunctionIdentifier works
+	// through the EscapeSequenceParser, matching the new upstream API.
+	p := NewEscapeSequenceParser()
+	h := &testApcHandler{endRet: true}
+	p.RegisterApcHandler(FunctionIdentifier{Final: 'G'}, h)
+
+	// The identifier for Final='G' is 0x47
+	p.apcParser.Start(int('G'))
+	data := toUint32("payload")
+	p.apcParser.Put(data, 0, len(data))
+	p.apcParser.End(true)
+
+	type Expectation struct {
+		Starts int
+		Puts   []string
+		Ends   []bool
+	}
+	got := Expectation{Starts: h.starts, Puts: h.puts, Ends: h.ends}
+	expected := Expectation{Starts: 1, Puts: []string{"payload"}, Ends: []bool{true}}
 	if diff := cmp.Diff(expected, got); diff != "" {
 		t.Errorf("(-want +got):\n%s", diff)
 	}

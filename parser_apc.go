@@ -4,7 +4,9 @@ package xterm
 //
 // ApcParser handles Application Program Command sequences. Unlike OSC which
 // uses numeric identifiers, APC uses the first character as the identifier
-// (e.g., 'G' for Kitty graphics protocol).
+// (e.g., 'G' for Kitty graphics protocol). The main parser drives APC state
+// transitions (APC_ENTRY → APC_INTERMEDIATE → APC_PASSTHROUGH) and calls
+// Start(ident) with the computed identifier directly.
 
 // ApcHandler is the interface for handlers that process APC sequences.
 // Intentionally separate from OscHandler to mirror xterm.js type structure.
@@ -19,9 +21,8 @@ type ApcFallbackHandler func(ident int, action string, payload ...interface{})
 
 // ApcParser parses APC sequences and dispatches to registered handlers.
 type ApcParser struct {
-	state     ApcState
 	active    []ApcHandler
-	id        int
+	ident     int
 	handlers  map[int][]ApcHandler
 	handlerFb ApcFallbackHandler
 }
@@ -29,14 +30,12 @@ type ApcParser struct {
 // NewApcParser creates a new ApcParser.
 func NewApcParser() *ApcParser {
 	return &ApcParser{
-		state:     ApcStateStart,
-		id:        -1,
 		handlers:  make(map[int][]ApcHandler),
 		handlerFb: func(int, string, ...interface{}) {},
 	}
 }
 
-// RegisterHandler registers a handler for the given APC identifier (character code).
+// RegisterHandler registers a handler for the given APC identifier.
 // Returns a Disposable that removes the handler when disposed.
 func (p *ApcParser) RegisterHandler(ident int, handler ApcHandler) Disposable {
 	p.handlers[ident] = append(p.handlers[ident], handler)
@@ -70,31 +69,36 @@ func (p *ApcParser) Dispose() {
 
 // Reset forces cleanup of active handlers and resets parser state.
 func (p *ApcParser) Reset() {
-	if p.state == ApcStatePayload {
+	if len(p.active) > 0 {
 		for j := len(p.active) - 1; j >= 0; j-- {
 			p.active[j].End(false)
 		}
 	}
 	p.active = nil
-	p.id = -1
-	p.state = ApcStateStart
+	p.ident = 0
 }
 
-func (p *ApcParser) start() {
-	if handlers, ok := p.handlers[p.id]; ok && len(handlers) > 0 {
+// Start begins a new APC sequence with the given identifier.
+// The identifier is computed by the main parser from collect bytes and the
+// final character (collect<<8 | code), matching the DCS pattern.
+func (p *ApcParser) Start(ident int) {
+	p.Reset()
+	p.ident = ident
+	if handlers, ok := p.handlers[ident]; ok && len(handlers) > 0 {
 		p.active = handlers
 		for j := len(p.active) - 1; j >= 0; j-- {
 			p.active[j].Start()
 		}
 	} else {
 		p.active = nil
-		p.handlerFb(p.id, "START")
+		p.handlerFb(p.ident, "START")
 	}
 }
 
-func (p *ApcParser) put(data []uint32, start, end int) {
+// Put feeds payload data to the active APC handlers.
+func (p *ApcParser) Put(data []uint32, start, end int) {
 	if len(p.active) == 0 {
-		p.handlerFb(p.id, "PUT", utf32ToString(data, start, end))
+		p.handlerFb(p.ident, "PUT", utf32ToString(data, start, end))
 	} else {
 		for j := len(p.active) - 1; j >= 0; j-- {
 			p.active[j].Put(data, start, end)
@@ -102,61 +106,23 @@ func (p *ApcParser) put(data []uint32, start, end int) {
 	}
 }
 
-// Start begins a new APC sequence, resetting any leftover state.
-func (p *ApcParser) Start() {
-	p.Reset()
-	p.state = ApcStateID
-}
-
-// Put feeds data to the current APC command. The first character is used as
-// the identifier, and subsequent data is passed as payload.
-func (p *ApcParser) Put(data []uint32, start, end int) {
-	if p.state == ApcStateAbort {
-		return
-	}
-	if p.state == ApcStateID {
-		if start < end {
-			p.id = int(data[start])
-			start++
-			p.state = ApcStatePayload
-			p.start()
-		}
-	}
-	if p.state == ApcStatePayload && end-start > 0 {
-		p.put(data, start, end)
-	}
-}
-
 // End signals the end of an APC sequence. success indicates whether the
 // sequence terminated normally or was aborted.
 func (p *ApcParser) End(success bool) {
-	if p.state == ApcStateStart {
-		return
-	}
-	if p.state != ApcStateAbort {
-		// Early end in ID state means empty APC — invalid, just reset.
-		if p.state == ApcStateID {
-			p.active = nil
-			p.id = -1
-			p.state = ApcStateStart
-			return
-		}
-		if len(p.active) == 0 {
-			p.handlerFb(p.id, "END", success)
-		} else {
-			for j := len(p.active) - 1; j >= 0; j-- {
-				if p.active[j].End(success) {
-					for k := j - 1; k >= 0; k-- {
-						p.active[k].End(false)
-					}
-					break
+	if len(p.active) == 0 {
+		p.handlerFb(p.ident, "END", success)
+	} else {
+		for j := len(p.active) - 1; j >= 0; j-- {
+			if p.active[j].End(success) {
+				for k := j - 1; k >= 0; k-- {
+					p.active[k].End(false)
 				}
+				break
 			}
 		}
 	}
 	p.active = nil
-	p.id = -1
-	p.state = ApcStateStart
+	p.ident = 0
 }
 
 // ApcStringHandler is a convenience wrapper that collects APC payload as a

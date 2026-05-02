@@ -265,13 +265,15 @@ func (p *EscapeSequenceParser) SetOscHandlerFallback(handler OscFallbackHandler)
 }
 
 // RegisterApcHandler registers an APC handler.
-func (p *EscapeSequenceParser) RegisterApcHandler(ident int, handler ApcHandler) Disposable {
-	return p.apcParser.RegisterHandler(ident, handler)
+func (p *EscapeSequenceParser) RegisterApcHandler(id FunctionIdentifier, handler ApcHandler) Disposable {
+	id.Prefix = 0 // APC does not support prefix byte
+	return p.apcParser.RegisterHandler(p.identifier(id), handler)
 }
 
 // ClearApcHandler removes all APC handlers for the identifier.
-func (p *EscapeSequenceParser) ClearApcHandler(ident int) {
-	p.apcParser.ClearHandler(ident)
+func (p *EscapeSequenceParser) ClearApcHandler(id FunctionIdentifier) {
+	id.Prefix = 0 // APC does not support prefix byte
+	p.apcParser.ClearHandler(p.identifier(id))
 }
 
 // SetApcHandlerFallback sets the APC fallback handler.
@@ -492,16 +494,17 @@ func (p *EscapeSequenceParser) Parse(data []uint32, length int) {
 			p.precedingJoinState = 0
 
 		case ParserActionAPCStart:
-			p.apcParser.Start()
+			p.apcParser.Start(p.collect<<8 | int(code))
 
 		case ParserActionAPCPut:
-			// Inner loop: exit on 0x18, 0x1a, 0x1b, 0x9c
+			// Inner loop: allow 0x08-0x0d, 0x20-0x7e, non-ASCII printable
 			j := i + 1
 			for ; j < length; j++ {
 				code = data[j]
-				if code == 0x18 || code == 0x1a || code == 0x1b || code == 0x9c || (code > 0x7f && code < nonASCIIPrintable) {
-					break
+				if (code >= 0x20 && code < 0x7f) || (code >= 0x08 && code < 0x0e) || code >= nonASCIIPrintable {
+					continue
 				}
+				break
 			}
 			p.apcParser.Put(data, i, j)
 			i = j - 1

@@ -126,8 +126,10 @@ const (
 	ParserStateDCSIgnore          ParserState = 11
 	ParserStateDCSIntermediate    ParserState = 12
 	ParserStateDCSPassthrough     ParserState = 13
-	ParserStateAPCString          ParserState = 14
-	ParserStateLength             ParserState = 15 // number of states
+	ParserStateAPCEntry           ParserState = 14
+	ParserStateAPCIntermediate    ParserState = 15
+	ParserStateAPCPassthrough     ParserState = 16
+	ParserStateLength             ParserState = 17 // number of states
 )
 
 // ParserAction enumerates the internal actions of the escape sequence parser.
@@ -162,16 +164,6 @@ const (
 	OscStateID      OscState = 1
 	OscStatePayload OscState = 2
 	OscStateAbort   OscState = 3
-)
-
-// ApcState enumerates the internal states of the APC parser.
-type ApcState uint8
-
-const (
-	ApcStateStart   ApcState = 0
-	ApcStateID      ApcState = 1
-	ApcStatePayload ApcState = 2
-	ApcStateAbort   ApcState = 3
 )
 
 // ParserPayloadLimit is the maximum payload size for OSC and DCS sequences.

@@ -105,10 +105,10 @@ func TestParserEnums(t *testing.T) {
 	}
 	tests := []TestCase{
 		{"ground/ignore", Expectation{State: 0, Action: 0}},
-		{"apc_string/apc_end", Expectation{State: 14, Action: 17}},
-		{"state_length/print", Expectation{State: 15, Action: 2}},
+		{"apc_passthrough/apc_end", Expectation{State: 16, Action: 17}},
+		{"state_length/print", Expectation{State: 17, Action: 2}},
 	}
-	states := []ParserState{ParserStateGround, ParserStateAPCString, ParserStateLength}
+	states := []ParserState{ParserStateGround, ParserStateAPCPassthrough, ParserStateLength}
 	actions := []ParserAction{ParserActionIgnore, ParserActionAPCEnd, ParserActionPrint}
 	for i, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {

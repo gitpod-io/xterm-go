@@ -221,9 +221,9 @@ func (t *Terminal) OnRender(fn func(RowRange)) Disposable {
 }
 
 // RegisterApcHandler registers a handler for APC escape sequences.
-// ident is the character code of the first byte after ESC _ (e.g., 0x47 for 'G').
-func (t *Terminal) RegisterApcHandler(ident int, handler func(data string) bool) Disposable {
-	return t.inputHandler.parser.RegisterApcHandler(ident, NewApcStringHandler(handler))
+// id identifies the APC function by its final character (e.g., Final: 'G' for Kitty graphics).
+func (t *Terminal) RegisterApcHandler(id FunctionIdentifier, handler func(data string) bool) Disposable {
+	return t.inputHandler.parser.RegisterApcHandler(id, NewApcStringHandler(handler))
 }
 
 // RegisterCsiHandler registers a custom handler for a CSI escape sequence.
