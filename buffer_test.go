@@ -438,6 +438,23 @@ func TestBufferClearAllMarkers(t *testing.T) {
 	}
 }
 
+func TestBufferDispose(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		MarkerCount    int
+		MarkerDisposed bool
+	}
+	b := NewBuffer(defaultBufferOpts())
+	b.FillViewportRows(nil)
+	m := b.AddMarker(3)
+	b.Dispose()
+	got := Expectation{MarkerCount: len(b.Markers), MarkerDisposed: m.IsDisposed}
+	expected := Expectation{MarkerCount: 0, MarkerDisposed: true}
+	if diff := cmp.Diff(expected, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
 func TestBufferGetNullCell(t *testing.T) {
 	t.Parallel()
 	type Expectation struct {

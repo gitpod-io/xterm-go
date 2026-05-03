@@ -35,7 +35,14 @@ func NewBufferSet(cols, rows, scrollback, tabStopWidth int) *BufferSet {
 }
 
 // Reset recreates both buffers and activates the normal buffer.
+// Old buffers are disposed to clean up markers and event listeners.
 func (bs *BufferSet) Reset() {
+	if bs.normal != nil {
+		bs.normal.Dispose()
+	}
+	if bs.alt != nil {
+		bs.alt.Dispose()
+	}
 	bs.normal = NewBuffer(BufferOptions{
 		Cols:          bs.cols,
 		Rows:          bs.rows,
@@ -119,7 +126,13 @@ func (bs *BufferSet) SetupTabStops(startCol int) {
 	bs.alt.SetupTabStops(startCol)
 }
 
-// Dispose cleans up event emitters.
+// Dispose cleans up buffers and event emitters.
 func (bs *BufferSet) Dispose() {
+	if bs.normal != nil {
+		bs.normal.Dispose()
+	}
+	if bs.alt != nil {
+		bs.alt.Dispose()
+	}
 	bs.OnBufferActivateEmitter.Dispose()
 }

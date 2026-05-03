@@ -574,6 +574,11 @@ func (b *Buffer) ClearAllMarkers() {
 	b.isClearing = false
 }
 
+// Dispose cleans up the buffer by disposing all markers and their event listeners.
+func (b *Buffer) Dispose() {
+	b.ClearAllMarkers()
+}
+
 // AddMarker creates a marker at the given line and registers it for
 // automatic adjustment on trim/insert/delete events.
 func (b *Buffer) AddMarker(y int) *Marker {

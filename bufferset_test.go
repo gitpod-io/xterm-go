@@ -141,6 +141,48 @@ func TestBufferSetReset(t *testing.T) {
 	}
 }
 
+func TestBufferSetResetDisposesOldMarkers(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		NormalMarkerDisposed bool
+		AltMarkerDisposed    bool
+		NewNormalMarkerCount int
+	}
+	bs := NewBufferSet(80, 24, 1000, 8)
+	normalMarker := bs.Normal().AddMarker(0)
+	bs.ActivateAltBuffer(nil)
+	altMarker := bs.Alt().AddMarker(0)
+	bs.Reset()
+	got := Expectation{
+		NormalMarkerDisposed: normalMarker.IsDisposed,
+		AltMarkerDisposed:    altMarker.IsDisposed,
+		NewNormalMarkerCount: len(bs.Normal().Markers),
+	}
+	expected := Expectation{
+		NormalMarkerDisposed: true,
+		AltMarkerDisposed:    true,
+		NewNormalMarkerCount: 0,
+	}
+	if diff := cmp.Diff(expected, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestBufferSetDisposeDisposesBufferMarkers(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		MarkerDisposed bool
+	}
+	bs := NewBufferSet(80, 24, 1000, 8)
+	marker := bs.Normal().AddMarker(0)
+	bs.Dispose()
+	got := Expectation{MarkerDisposed: marker.IsDisposed}
+	expected := Expectation{MarkerDisposed: true}
+	if diff := cmp.Diff(expected, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
 func TestBufferSetResize(t *testing.T) {
 	t.Parallel()
 	type Expectation struct {
