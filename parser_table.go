@@ -165,7 +165,6 @@ func buildVT500TransitionTable() *TransitionTable {
 	table.Add(0x50, ParserStateEscape, ParserActionClear, ParserStateDCSEntry)
 	table.AddMany(executables, ParserStateDCSEntry, ParserActionIgnore, ParserStateDCSEntry)
 	table.Add(0x7f, ParserStateDCSEntry, ParserActionIgnore, ParserStateDCSEntry)
-	table.AddMany(r(0x1c, 0x20), ParserStateDCSEntry, ParserActionIgnore, ParserStateDCSEntry)
 	table.AddMany(r(0x20, 0x30), ParserStateDCSEntry, ParserActionCollect, ParserStateDCSIntermediate)
 	table.AddMany(r(0x30, 0x3c), ParserStateDCSEntry, ParserActionParam, ParserStateDCSParam)
 	table.AddMany([]int{0x3c, 0x3d, 0x3e, 0x3f}, ParserStateDCSEntry, ParserActionCollect, ParserStateDCSParam)
@@ -173,12 +172,10 @@ func buildVT500TransitionTable() *TransitionTable {
 	// --- DCS ignore ---
 	table.AddMany(executables, ParserStateDCSIgnore, ParserActionIgnore, ParserStateDCSIgnore)
 	table.AddMany(r(0x20, 0x80), ParserStateDCSIgnore, ParserActionIgnore, ParserStateDCSIgnore)
-	table.AddMany(r(0x1c, 0x20), ParserStateDCSIgnore, ParserActionIgnore, ParserStateDCSIgnore)
 
 	// --- DCS param ---
 	table.AddMany(executables, ParserStateDCSParam, ParserActionIgnore, ParserStateDCSParam)
 	table.Add(0x7f, ParserStateDCSParam, ParserActionIgnore, ParserStateDCSParam)
-	table.AddMany(r(0x1c, 0x20), ParserStateDCSParam, ParserActionIgnore, ParserStateDCSParam)
 	table.AddMany(r(0x30, 0x3c), ParserStateDCSParam, ParserActionParam, ParserStateDCSParam)
 	table.AddMany([]int{0x3c, 0x3d, 0x3e, 0x3f}, ParserStateDCSParam, ParserActionIgnore, ParserStateDCSIgnore)
 	table.AddMany(r(0x20, 0x30), ParserStateDCSParam, ParserActionCollect, ParserStateDCSIntermediate)
@@ -186,7 +183,6 @@ func buildVT500TransitionTable() *TransitionTable {
 	// --- DCS intermediate ---
 	table.AddMany(executables, ParserStateDCSIntermediate, ParserActionIgnore, ParserStateDCSIntermediate)
 	table.Add(0x7f, ParserStateDCSIntermediate, ParserActionIgnore, ParserStateDCSIntermediate)
-	table.AddMany(r(0x1c, 0x20), ParserStateDCSIntermediate, ParserActionIgnore, ParserStateDCSIntermediate)
 	table.AddMany(r(0x20, 0x30), ParserStateDCSIntermediate, ParserActionCollect, ParserStateDCSIntermediate)
 	table.AddMany(r(0x30, 0x40), ParserStateDCSIntermediate, ParserActionIgnore, ParserStateDCSIgnore)
 	table.AddMany(r(0x40, 0x7f), ParserStateDCSIntermediate, ParserActionDCSHook, ParserStateDCSPassthrough)

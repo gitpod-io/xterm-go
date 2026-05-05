@@ -2,7 +2,7 @@
 # yarn lockfile v1
 
 
-"@xterm/headless@6.1.0-beta.199":
-  version "6.1.0-beta.199"
-  resolved "https://registry.yarnpkg.com/@xterm/headless/-/headless-6.1.0-beta.199.tgz#cc5ea68420011dba5decb73dbd04c6a9fdea167a"
-  integrity sha512-7p1FEXBXBYeXySmoe7Mpta+XBrFcuBD/j9gNuM5SttWgGAh3InXYZgWbhrNTZE712CglfSOolmd0LzpQUnP5+g==
+"@xterm/headless@6.1.0-beta.216":
+  version "6.1.0-beta.216"
+  resolved "https://registry.yarnpkg.com/@xterm/headless/-/headless-6.1.0-beta.216.tgz#7b98a3ed0a31753511fe1e15cd7820521e30ac1c"
+  integrity sha512-HCut3ABwBv5zVUAB+5KVTW4svr/fCeVMW9xtaJIhmXZsNHOrhVFOGX7E2CYzRa8xdX/aI2JdTIhgLl8xjcHEoA==
