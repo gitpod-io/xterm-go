@@ -343,6 +343,72 @@ func (p *EscapeSequenceParser) Parse(data []uint32, length int) {
 	for i := 0; i < length; i++ {
 		code = data[i]
 
+		// EXE fast-path: common control bytes (0x00-0x17) in non-payload states
+		// bypass the transition table entirely and dispatch directly.
+		if code < 0x18 && p.currentState <= ParserStateCSIIgnore {
+			if p.executeHandlers[code] != nil {
+				p.executeHandlers[code]()
+			} else {
+				p.executeHandlerFb(code)
+			}
+			p.precedingJoinState = 0
+			continue
+		}
+
+		// CSI fast-path: when ESC [ is detected in a non-string state, parse
+		// params and final byte in a tight loop without table lookups.
+		if code == 0x1b && p.currentState < ParserStateOSCString &&
+			i+2 < length && data[i+1] == 0x5b {
+			p.params.ResetZdm()
+			p.collect = 0
+			k := i + 2
+			ch := data[k]
+			// Prefix byte (< = > ?)
+			if ch >= 0x3c && ch <= 0x3f {
+				p.collect = int(ch)
+				k++
+			}
+			csiDone := false
+			for ; k < length; k++ {
+				ch = data[k]
+				if ch >= 0x30 && ch <= 0x39 {
+					p.params.AddDigit(int32(ch) - 48)
+				} else if ch == 0x3b {
+					p.params.AddParam(0) // ZDM
+				} else if ch == 0x3a {
+					p.params.AddSubParam(-1)
+				} else if ch >= 0x40 && ch <= 0x7e {
+					// Final byte — dispatch CSI handler
+					ident := p.collect<<8 | int(ch)
+					handlers := p.csiHandlers[ident]
+					j := len(handlers) - 1
+					for ; j >= 0; j-- {
+						if handlers[j](p.params) {
+							break
+						}
+					}
+					if j < 0 {
+						p.csiHandlerFb(ident, p.params)
+					}
+					p.precedingJoinState = 0
+					i = k
+					p.currentState = ParserStateGround
+					csiDone = true
+					break
+				} else {
+					// Intermediate byte or unexpected — fall back to table-driven path
+					break
+				}
+			}
+			if !csiDone {
+				// Ran out of data or hit an intermediate; let the table-driven
+				// path continue from the CSI_PARAM state.
+				i = k - 1
+				p.currentState = ParserStateCSIParam
+			}
+			continue
+		}
+
 		// Map non-ASCII printable to the 0xA0 slot
 		if code < 0xa0 {
 			transition = table[int(p.currentState)<<tableIndexStateShift|int(code)]

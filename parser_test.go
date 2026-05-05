@@ -573,3 +573,418 @@ func TestParseDCSSequence(t *testing.T) {
 		t.Errorf("(-want +got):\n%s", diff)
 	}
 }
+
+// --- EXE fast-path tests ---
+
+func TestEXEFastPathDispatchesRegisteredHandler(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		Codes []uint32
+	}
+	var got Expectation
+	p := NewEscapeSequenceParser()
+	p.SetPrintHandler(func(data []uint32, start, end int) {})
+	for _, c := range []byte{0x00, 0x07, 0x08, 0x0a, 0x0d, 0x0e, 0x0f} {
+		code := c
+		p.RegisterExecuteHandler(code, func() {
+			got.Codes = append(got.Codes, uint32(code))
+		})
+	}
+	data := []uint32{0x00, 0x07, 0x08, 0x0a, 0x0d, 0x0e, 0x0f}
+	p.Parse(data, len(data))
+	want := Expectation{Codes: []uint32{0x00, 0x07, 0x08, 0x0a, 0x0d, 0x0e, 0x0f}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestEXEFastPathFallback(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		FallbackCodes []uint32
+	}
+	var got Expectation
+	p := NewEscapeSequenceParser()
+	p.SetPrintHandler(func(data []uint32, start, end int) {})
+	p.SetExecuteHandlerFallback(func(code uint32) {
+		got.FallbackCodes = append(got.FallbackCodes, code)
+	})
+	data := []uint32{0x05, 0x06}
+	p.Parse(data, len(data))
+	want := Expectation{FallbackCodes: []uint32{0x05, 0x06}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestEXEFastPathResetsJoinState(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		JoinState int
+	}
+	p := NewEscapeSequenceParser()
+	p.SetPrintHandler(func(data []uint32, start, end int) {})
+	p.RegisterExecuteHandler(0x0a, func() {})
+	p.SetPrecedingJoinState(42)
+	data := []uint32{0x0a}
+	p.Parse(data, len(data))
+	got := Expectation{JoinState: p.PrecedingJoinState()}
+	want := Expectation{JoinState: 0}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestEXEFastPathInCSIStates(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		Executed bool
+	}
+	var got Expectation
+	p := NewEscapeSequenceParser()
+	p.SetPrintHandler(func(data []uint32, start, end int) {})
+	p.RegisterExecuteHandler(0x0a, func() {
+		got.Executed = true
+	})
+	// ESC [ puts us in CSI_ENTRY; then 0x0a should be dispatched via fast-path
+	data := toUint32("\x1b[")
+	p.Parse(data, len(data))
+	data = []uint32{0x0a}
+	p.Parse(data, len(data))
+	want := Expectation{Executed: true}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestEXEFastPathSkippedInPayloadStates(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		ExecuteCount int
+		OscData      string
+	}
+	var got Expectation
+	p := NewEscapeSequenceParser()
+	p.SetPrintHandler(func(data []uint32, start, end int) {})
+	p.RegisterExecuteHandler(0x0a, func() {
+		got.ExecuteCount++
+	})
+	p.RegisterOscHandler(0, NewOscStringHandler(func(data string) bool {
+		got.OscData = data
+		return true
+	}))
+	data := toUint32("\x1b]0;title\x07")
+	p.Parse(data, len(data))
+	want := Expectation{ExecuteCount: 0, OscData: "title"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestEXEFastPathMixedWithPrint(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		Printed  string
+		Executed []uint32
+	}
+	var got Expectation
+	p := NewEscapeSequenceParser()
+	p.SetPrintHandler(func(data []uint32, start, end int) {
+		got.Printed += utf32ToString(data, start, end)
+	})
+	p.RegisterExecuteHandler(0x0a, func() {
+		got.Executed = append(got.Executed, 0x0a)
+	})
+	p.RegisterExecuteHandler(0x0d, func() {
+		got.Executed = append(got.Executed, 0x0d)
+	})
+	data := toUint32("AB\nCD\rEF")
+	p.Parse(data, len(data))
+	want := Expectation{
+		Printed:  "ABCDEF",
+		Executed: []uint32{0x0a, 0x0d},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+// --- CSI fast-path tests ---
+
+func TestCSIFastPathSimple(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		Called bool
+		Params []int32
+	}
+	var got Expectation
+	p := NewEscapeSequenceParser()
+	p.SetPrintHandler(func(data []uint32, start, end int) {})
+	p.RegisterCsiHandler(FunctionIdentifier{Final: 'H'}, func(params *Params) bool {
+		got.Called = true
+		got.Params = make([]int32, params.Length)
+		copy(got.Params, params.Params[:params.Length])
+		return true
+	})
+	data := toUint32("\x1b[10;20H")
+	p.Parse(data, len(data))
+	want := Expectation{Called: true, Params: []int32{10, 20}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestCSIFastPathNoParams(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		Called bool
+		Params []int32
+	}
+	var got Expectation
+	p := NewEscapeSequenceParser()
+	p.SetPrintHandler(func(data []uint32, start, end int) {})
+	p.RegisterCsiHandler(FunctionIdentifier{Final: 'H'}, func(params *Params) bool {
+		got.Called = true
+		got.Params = make([]int32, params.Length)
+		copy(got.Params, params.Params[:params.Length])
+		return true
+	})
+	data := toUint32("\x1b[H")
+	p.Parse(data, len(data))
+	want := Expectation{Called: true, Params: []int32{0}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestCSIFastPathWithPrefix(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		Called bool
+		Params []int32
+	}
+	var got Expectation
+	p := NewEscapeSequenceParser()
+	p.SetPrintHandler(func(data []uint32, start, end int) {})
+	p.RegisterCsiHandler(FunctionIdentifier{Prefix: '?', Final: 'h'}, func(params *Params) bool {
+		got.Called = true
+		got.Params = make([]int32, params.Length)
+		copy(got.Params, params.Params[:params.Length])
+		return true
+	})
+	data := toUint32("\x1b[?25h")
+	p.Parse(data, len(data))
+	want := Expectation{Called: true, Params: []int32{25}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestCSIFastPathWithSubParams(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		MainParams []int32
+		HasSub     bool
+	}
+	var got Expectation
+	p := NewEscapeSequenceParser()
+	p.SetPrintHandler(func(data []uint32, start, end int) {})
+	p.RegisterCsiHandler(FunctionIdentifier{Final: 'm'}, func(params *Params) bool {
+		got.MainParams = make([]int32, params.Length)
+		copy(got.MainParams, params.Params[:params.Length])
+		got.HasSub = params.HasSubParams(0)
+		return true
+	})
+	data := toUint32("\x1b[4:3m")
+	p.Parse(data, len(data))
+	want := Expectation{MainParams: []int32{4}, HasSub: true}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestCSIFastPathFallbackHandler(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		Ident int
+	}
+	var got Expectation
+	p := NewEscapeSequenceParser()
+	p.SetPrintHandler(func(data []uint32, start, end int) {})
+	p.SetCsiHandlerFallback(func(ident int, params *Params) {
+		got.Ident = ident
+	})
+	data := toUint32("\x1b[0m")
+	p.Parse(data, len(data))
+	want := Expectation{Ident: int('m')}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestCSIFastPathResetsJoinState(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		JoinState int
+	}
+	p := NewEscapeSequenceParser()
+	p.SetPrintHandler(func(data []uint32, start, end int) {})
+	p.RegisterCsiHandler(FunctionIdentifier{Final: 'H'}, func(params *Params) bool {
+		return true
+	})
+	p.SetPrecedingJoinState(42)
+	data := toUint32("\x1b[H")
+	p.Parse(data, len(data))
+	got := Expectation{JoinState: p.PrecedingJoinState()}
+	want := Expectation{JoinState: 0}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestCSIFastPathReturnsToGround(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		State ParserState
+	}
+	p := NewEscapeSequenceParser()
+	p.SetPrintHandler(func(data []uint32, start, end int) {})
+	p.RegisterCsiHandler(FunctionIdentifier{Final: 'H'}, func(params *Params) bool {
+		return true
+	})
+	data := toUint32("\x1b[1;1H")
+	p.Parse(data, len(data))
+	got := Expectation{State: p.CurrentState()}
+	want := Expectation{State: ParserStateGround}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestCSIFastPathWithIntermediate(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		Called bool
+	}
+	var got Expectation
+	p := NewEscapeSequenceParser()
+	p.SetPrintHandler(func(data []uint32, start, end int) {})
+	// CSI 2 SP q (DECSCUSR) — has intermediate, falls back to table-driven path
+	p.RegisterCsiHandler(FunctionIdentifier{Intermediates: " ", Final: 'q'}, func(params *Params) bool {
+		got.Called = true
+		return true
+	})
+	data := toUint32("\x1b[2 q")
+	p.Parse(data, len(data))
+	want := Expectation{Called: true}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestCSIFastPathFollowedByText(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		CSICalls int
+		Printed  string
+	}
+	var got Expectation
+	p := NewEscapeSequenceParser()
+	p.SetPrintHandler(func(data []uint32, start, end int) {
+		got.Printed += utf32ToString(data, start, end)
+	})
+	p.RegisterCsiHandler(FunctionIdentifier{Final: 'H'}, func(params *Params) bool {
+		got.CSICalls++
+		return true
+	})
+	data := toUint32("\x1b[1;1Hhello")
+	p.Parse(data, len(data))
+	want := Expectation{CSICalls: 1, Printed: "hello"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestCSIFastPathMultipleSequences(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		Calls  int
+		Params [][]int32
+	}
+	var got Expectation
+	p := NewEscapeSequenceParser()
+	p.SetPrintHandler(func(data []uint32, start, end int) {})
+	p.RegisterCsiHandler(FunctionIdentifier{Final: 'H'}, func(params *Params) bool {
+		got.Calls++
+		ps := make([]int32, params.Length)
+		copy(ps, params.Params[:params.Length])
+		got.Params = append(got.Params, ps)
+		return true
+	})
+	data := toUint32("\x1b[1;1H\x1b[5;10H\x1b[20;30H")
+	p.Parse(data, len(data))
+	want := Expectation{
+		Calls: 3,
+		Params: [][]int32{
+			{1, 1},
+			{5, 10},
+			{20, 30},
+		},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestCSIFastPathPartialSequence(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		Called bool
+		Params []int32
+	}
+	var got Expectation
+	p := NewEscapeSequenceParser()
+	p.SetPrintHandler(func(data []uint32, start, end int) {})
+	p.RegisterCsiHandler(FunctionIdentifier{Final: 'H'}, func(params *Params) bool {
+		got.Called = true
+		got.Params = make([]int32, params.Length)
+		copy(got.Params, params.Params[:params.Length])
+		return true
+	})
+	// First chunk: ESC [ 1 ; — incomplete
+	data1 := toUint32("\x1b[1;")
+	p.Parse(data1, len(data1))
+	// Second chunk: 2 H — completes via table-driven path
+	data2 := toUint32("2H")
+	p.Parse(data2, len(data2))
+	want := Expectation{Called: true, Params: []int32{1, 2}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestCSIFastPathHandlerStacking(t *testing.T) {
+	t.Parallel()
+	type Expectation struct {
+		Order []int
+	}
+	var got Expectation
+	p := NewEscapeSequenceParser()
+	p.SetPrintHandler(func(data []uint32, start, end int) {})
+	id := FunctionIdentifier{Final: 'm'}
+	p.RegisterCsiHandler(id, func(params *Params) bool {
+		got.Order = append(got.Order, 1)
+		return true
+	})
+	p.RegisterCsiHandler(id, func(params *Params) bool {
+		got.Order = append(got.Order, 2)
+		return false // don't consume, let it bubble
+	})
+	data := toUint32("\x1b[0m")
+	p.Parse(data, len(data))
+	want := Expectation{Order: []int{2, 1}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
