@@ -1217,6 +1217,14 @@ func TestRequestModePrivate(t *testing.T) {
 		{"mouse_encoding_sgr", "\x1b[?1006h", "\x1b[?1006$p", "\x1b[?1006;1$y"},
 		{"color_scheme_updates_set", "\x1b[?2031h", "\x1b[?2031$p", "\x1b[?2031;1$y"},
 		{"win32_input_set", "\x1b[?9001h", "\x1b[?9001$p", "\x1b[?9001;1$y"},
+		// Permanently set/reset modes (issue #27)
+		{"DECARM_permanently_set", "", "\x1b[?8$p", "\x1b[?8;3$y"},
+		{"DECBKM_permanently_reset", "", "\x1b[?67$p", "\x1b[?67;4$y"},
+		{"UTF8_mouse_permanently_reset", "", "\x1b[?1005$p", "\x1b[?1005;4$y"},
+		{"urxvt_mouse_permanently_reset", "", "\x1b[?1015$p", "\x1b[?1015;4$y"},
+		// Dynamic mode reports (issue #28)
+		{"cursor_blink_default_reset", "", "\x1b[?12$p", "\x1b[?12;2$y"},
+		{"save_cursor_always_set", "", "\x1b[?1048$p", "\x1b[?1048;1$y"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
@@ -1248,6 +1256,9 @@ func TestRequestModeANSI(t *testing.T) {
 		{"insert_mode_default", "", "\x1b[4$p", "\x1b[4;2$y"},
 		{"insert_mode_set", "\x1b[4h", "\x1b[4$p", "\x1b[4;1$y"},
 		{"convert_eol_default", "", "\x1b[20$p", "\x1b[20;2$y"},
+		// Permanently set/reset modes (issue #27)
+		{"KAM_permanently_reset", "", "\x1b[2$p", "\x1b[2;4$y"},
+		{"SRM_permanently_set", "", "\x1b[12$p", "\x1b[12;3$y"},
 		{"unrecognized_ansi_mode", "", "\x1b[99$p", "\x1b[99;0$y"},
 	}
 	for _, tc := range tests {
@@ -1266,6 +1277,33 @@ func TestRequestModeANSI(t *testing.T) {
 				t.Errorf("expected response %q, got %q", tc.Expected, response)
 			}
 		})
+	}
+}
+
+func TestRequestModeCursorBlinkEnabled(t *testing.T) {
+	t.Parallel()
+	// CursorBlink enabled should report SET (Pm=1) for mode 12.
+	opts := DefaultOptions()
+	opts.Cols = 80
+	opts.Rows = 24
+	opts.Scrollback = 1000
+	opts.CursorBlink = true
+	optsSvc := NewOptionsService(&opts)
+	bufSvc := NewBufferService(optsSvc)
+	charSvc := NewCharsetService()
+	coreSvc := NewCoreService(optsSvc)
+	oscLinkSvc := NewOscLinkService(bufSvc)
+	uniSvc := NewUnicodeService()
+	h := NewInputHandler(bufSvc, charSvc, coreSvc, optsSvc, oscLinkSvc, uniSvc)
+
+	var response string
+	h.coreService.OnDataEmitter.Event(func(data string) {
+		response = data
+	})
+	h.ParseString("\x1b[?12$p")
+	expected := "\x1b[?12;1$y"
+	if response != expected {
+		t.Errorf("expected response %q, got %q", expected, response)
 	}
 }
 

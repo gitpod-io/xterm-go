@@ -776,12 +776,18 @@ func (h *InputHandler) privateModeSetting(mode int) int {
 		return boolToPm(dm.Origin)
 	case 7:
 		return boolToPm(dm.Wraparound)
+	case 8:
+		return 3 // DECARM: permanently set
+	case 12:
+		return boolToPm(h.optionsService.Options.CursorBlink)
 	case 25:
 		return boolToPm(!h.coreService.IsCursorHidden)
 	case 45:
 		return boolToPm(dm.ReverseWraparound)
 	case 66:
 		return boolToPm(dm.ApplicationKeypad)
+	case 67:
+		return 4 // DECBKM: permanently reset
 	case 9:
 		return boolToPm(dm.MouseTrackingMode == "X10")
 	case 1000:
@@ -792,10 +798,16 @@ func (h *InputHandler) privateModeSetting(mode int) int {
 		return boolToPm(dm.MouseTrackingMode == "ANY")
 	case 1004:
 		return boolToPm(dm.SendFocus)
+	case 1005:
+		return 4 // UTF-8 mouse: permanently reset
 	case 1006:
 		return boolToPm(dm.MouseEncoding == "SGR")
+	case 1015:
+		return 4 // urxvt mouse: permanently reset
 	case 1016:
 		return boolToPm(dm.MouseEncoding == "SGR_PIXELS")
+	case 1048:
+		return 1 // save cursor: always set
 	case 47, 1047, 1049:
 		return boolToPm(h.bufferService.Buffers.Active() == h.bufferService.Buffers.Alt())
 	case 2004:
@@ -814,8 +826,12 @@ func (h *InputHandler) privateModeSetting(mode int) int {
 // ansiModeSetting returns the DECRPM Pm value for an ANSI mode.
 func (h *InputHandler) ansiModeSetting(mode int) int {
 	switch mode {
+	case 2:
+		return 4 // KAM: permanently reset
 	case 4:
 		return boolToPm(h.coreService.Modes.InsertMode)
+	case 12:
+		return 3 // SRM: permanently set
 	case 20:
 		return boolToPm(h.optionsService.Options.ConvertEol)
 	default:
