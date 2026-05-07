@@ -23,6 +23,11 @@ func WithScrollback(n int) Option {
 	return func(o *TerminalOptions) { o.Scrollback = n }
 }
 
+// WithScreenReaderMode enables screen reader / accessibility mode.
+func WithScreenReaderMode(on bool) Option {
+	return func(o *TerminalOptions) { o.ScreenReaderMode = on }
+}
+
 // Terminal is a headless terminal emulator.
 type Terminal struct {
 	optionsService *OptionsService
@@ -218,6 +223,21 @@ func (t *Terminal) OnScroll(fn func(int)) Disposable {
 // OnRender registers a callback fired when terminal rows are dirty.
 func (t *Terminal) OnRender(fn func(RowRange)) Disposable {
 	return t.OnRenderEmitter.Event(fn)
+}
+
+// OnColor subscribes to color palette query/set/restore events (OSC 4/10/11/12).
+func (t *Terminal) OnColor(fn func([]ColorEvent)) Disposable {
+	return t.inputHandler.OnColorEmitter.Event(fn)
+}
+
+// OnA11yChar subscribes to accessibility character announcements.
+func (t *Terminal) OnA11yChar(fn func(string)) Disposable {
+	return t.inputHandler.OnA11yCharEmitter.Event(fn)
+}
+
+// OnA11yTab subscribes to accessibility tab movement announcements.
+func (t *Terminal) OnA11yTab(fn func(int)) Disposable {
+	return t.inputHandler.OnA11yTabEmitter.Event(fn)
 }
 
 // RegisterApcHandler registers a handler for APC escape sequences.

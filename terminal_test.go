@@ -1090,4 +1090,93 @@ func TestTerminalScrollLinesFiresEvent(t *testing.T) {
 	}
 }
 
+func TestTerminalOnColor(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	var got []ColorEvent
+	term.OnColor(func(events []ColorEvent) { got = events })
+
+	// OSC 4 ; 1 ; #ff0000 BEL — set indexed color 1 to red.
+	term.WriteString("\x1b]4;1;#ff0000\x07")
+
+	if len(got) == 0 {
+		t.Fatal("expected OnColor to fire, got no events")
+	}
+	if got[0].Type != ColorRequestSet {
+		t.Errorf("ColorEvent.Type = %v, want ColorRequestSet", got[0].Type)
+	}
+	if got[0].Index != 1 {
+		t.Errorf("ColorEvent.Index = %d, want 1", got[0].Index)
+	}
+	if got[0].Color == nil || *got[0].Color != (ColorRGB{0xff, 0x00, 0x00}) {
+		t.Errorf("ColorEvent.Color = %v, want &{255 0 0}", got[0].Color)
+	}
+}
+
+func TestTerminalOnColorDispose(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	count := 0
+	d := term.OnColor(func([]ColorEvent) { count++ })
+
+	term.WriteString("\x1b]4;1;#ff0000\x07")
+	if count == 0 {
+		t.Fatal("expected OnColor to fire")
+	}
+	first := count
+	d.Dispose()
+	term.WriteString("\x1b]4;2;#00ff00\x07")
+	if count != first {
+		t.Errorf("OnColor fired after Dispose: count went from %d to %d", first, count)
+	}
+}
+
+func TestTerminalOnA11yTab(t *testing.T) {
+	t.Parallel()
+	term := New(WithCols(80), WithRows(24), WithScrollback(1000), WithScreenReaderMode(true))
+	var tabWidths []int
+	term.OnA11yTab(func(n int) { tabWidths = append(tabWidths, n) })
+
+	// Tab character triggers OnA11yTab when ScreenReaderMode is enabled.
+	term.WriteString("\t")
+
+	if len(tabWidths) == 0 {
+		t.Fatal("expected OnA11yTab to fire, got no events")
+	}
+	if tabWidths[0] != 8 {
+		t.Errorf("OnA11yTab width = %d, want 8 (default tab stop)", tabWidths[0])
+	}
+}
+
+func TestTerminalOnA11yTabDispose(t *testing.T) {
+	t.Parallel()
+	term := New(WithCols(80), WithRows(24), WithScrollback(1000), WithScreenReaderMode(true))
+	count := 0
+	d := term.OnA11yTab(func(int) { count++ })
+
+	term.WriteString("\t")
+	if count == 0 {
+		t.Fatal("expected OnA11yTab to fire")
+	}
+	first := count
+	d.Dispose()
+	term.WriteString("\t")
+	if count != first {
+		t.Errorf("OnA11yTab fired after Dispose: count went from %d to %d", first, count)
+	}
+}
+
+func TestTerminalOnA11yChar(t *testing.T) {
+	t.Parallel()
+	// OnA11yChar emitter exists and is subscribable, even if not yet fired
+	// by the current implementation. Verify the accessor returns a valid Disposable.
+	term := newTestTerminal(80, 24)
+	count := 0
+	d := term.OnA11yChar(func(string) { count++ })
+	if d == nil {
+		t.Fatal("OnA11yChar returned nil Disposable")
+	}
+	d.Dispose()
+}
+
 
