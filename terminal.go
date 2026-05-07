@@ -30,13 +30,14 @@ func WithScreenReaderMode(on bool) Option {
 
 // Terminal is a headless terminal emulator.
 type Terminal struct {
-	optionsService *OptionsService
-	bufferService  *BufferService
-	charsetService *CharsetService
-	coreService    *CoreService
-	oscLinkService *OscLinkService
-	unicodeService *UnicodeService
-	inputHandler   *InputHandler
+	optionsService    *OptionsService
+	bufferService     *BufferService
+	charsetService    *CharsetService
+	coreService       *CoreService
+	mouseStateService *MouseStateService
+	oscLinkService    *OscLinkService
+	unicodeService    *UnicodeService
+	inputHandler      *InputHandler
 
 	// Public event emitters (forwarded from sub-components).
 	OnBellEmitter           EventEmitter[struct{}]
@@ -60,18 +61,20 @@ func New(opts ...Option) *Terminal {
 	bufSvc := NewBufferService(optsSvc)
 	charSvc := NewCharsetService()
 	coreSvc := NewCoreService(optsSvc)
+	mouseSvc := NewMouseStateService()
 	oscLinkSvc := NewOscLinkService(bufSvc)
 	uniSvc := NewUnicodeService()
 	ih := NewInputHandler(bufSvc, charSvc, coreSvc, optsSvc, oscLinkSvc, uniSvc)
 
 	t := &Terminal{
-		optionsService: optsSvc,
-		bufferService:  bufSvc,
-		charsetService: charSvc,
-		coreService:    coreSvc,
-		oscLinkService: oscLinkSvc,
-		unicodeService: uniSvc,
-		inputHandler:   ih,
+		optionsService:    optsSvc,
+		bufferService:     bufSvc,
+		charsetService:    charSvc,
+		coreService:       coreSvc,
+		mouseStateService: mouseSvc,
+		oscLinkService:    oscLinkSvc,
+		unicodeService:    uniSvc,
+		inputHandler:      ih,
 	}
 
 	// Forward input handler events.
@@ -130,6 +133,7 @@ func (t *Terminal) Reset() {
 	t.bufferService.Reset()
 	t.charsetService.Reset()
 	t.coreService.Reset()
+	t.mouseStateService.Reset()
 }
 
 // Cols returns the number of columns.
@@ -175,6 +179,29 @@ func (t *Terminal) String() string {
 		last--
 	}
 	return strings.Join(lines[:last+1], "\n")
+}
+
+// TriggerMouseEvent dispatches a mouse event through the active tracking protocol
+// and encoding. Returns true if the event was accepted and sent via the data event.
+// The active protocol is determined by DecPrivateModes.MouseTrackingMode and the
+// active encoding by DecPrivateModes.MouseEncoding.
+func (t *Terminal) TriggerMouseEvent(ev CoreMouseEvent) bool {
+	// Sync the mouse state service with the current DEC private modes.
+	dm := t.coreService.DecPrivateModes
+	t.mouseStateService.SetActiveProtocol(dm.MouseTrackingMode)
+	if dm.MouseEncoding != "" {
+		t.mouseStateService.SetActiveEncoding(dm.MouseEncoding)
+	}
+
+	encoded, ok := t.mouseStateService.TriggerMouseEvent(ev)
+	if !ok {
+		return false
+	}
+
+	buf := t.bufferService.Buffer()
+	shouldScroll := buf.YBase != buf.YDisp
+	t.coreService.TriggerDataEvent(encoded, false, shouldScroll)
+	return true
 }
 
 // OnData registers a callback for data sent from the terminal (e.g. DA responses).
@@ -365,6 +392,7 @@ func (t *Terminal) Scrollback() int { return t.optionsService.Options.Scrollback
 func (t *Terminal) Dispose() {
 	t.inputHandler.Dispose()
 	t.coreService.Dispose()
+	t.mouseStateService.Dispose()
 	t.OnBellEmitter.Dispose()
 	t.OnTitleChangeEmitter.Dispose()
 	t.OnIconNameChangeEmitter.Dispose()
