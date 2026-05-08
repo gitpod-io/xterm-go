@@ -1179,4 +1179,45 @@ func TestTerminalOnA11yChar(t *testing.T) {
 	d.Dispose()
 }
 
+func TestTerminalOnRequestColorSchemeQuery(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	fired := 0
+	term.OnRequestColorSchemeQuery(func() {
+		fired++
+	})
+
+	// Enable color scheme updates and send DSR 996.
+	term.WriteString("\x1b[?2031h")
+	term.WriteString("\x1b[?996n")
+
+	if fired != 1 {
+		t.Errorf("expected OnRequestColorSchemeQuery to fire once via Terminal, got %d", fired)
+	}
+}
+
+func TestTerminalOnRequestColorSchemeQueryDispose(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	fired := 0
+	d := term.OnRequestColorSchemeQuery(func() {
+		fired++
+	})
+
+	// Enable color scheme updates and send DSR 996.
+	term.WriteString("\x1b[?2031h")
+	term.WriteString("\x1b[?996n")
+	if fired != 1 {
+		t.Fatalf("expected 1 fire before dispose, got %d", fired)
+	}
+
+	// Dispose the listener and send again.
+	d.Dispose()
+	term.WriteString("\x1b[?996n")
+	if fired != 1 {
+		t.Errorf("expected no additional fires after dispose, got %d", fired)
+	}
+}
+
+
 

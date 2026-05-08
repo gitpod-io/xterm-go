@@ -497,10 +497,15 @@ func (h *InputHandler) deviceStatus(params *Params) bool {
 
 func (h *InputHandler) deviceStatusPrivate(params *Params) bool {
 	buf := h.activeBuffer()
-	if params.Params[0] == 6 {
+	switch params.Params[0] {
+	case 6:
 		y := buf.Y + 1
 		x := buf.X + 1
 		h.coreService.TriggerDataEvent(fmt.Sprintf("\x1b[?%d;%dR", y, x), false, false)
+	case 996:
+		if h.coreService.DecPrivateModes.ColorSchemeUpdates {
+			h.OnRequestColorSchemeQueryEmitter.Fire(struct{}{})
+		}
 	}
 	return true
 }

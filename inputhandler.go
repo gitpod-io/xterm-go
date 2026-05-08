@@ -98,8 +98,9 @@ type InputHandler struct {
 	OnRequestBellEmitter          EventEmitter[struct{}]
 	OnRequestResetEmitter         EventEmitter[struct{}]
 	OnRequestRefreshRowsEmitter   EventEmitter[RowRange]
-	OnColorEmitter                EventEmitter[[]ColorEvent]
-	OnRequestSyncScrollBarEmitter EventEmitter[struct{}]
+	OnColorEmitter                     EventEmitter[[]ColorEvent]
+	OnRequestSyncScrollBarEmitter      EventEmitter[struct{}]
+	OnRequestColorSchemeQueryEmitter   EventEmitter[struct{}]
 }
 
 // NewInputHandler creates an InputHandler and registers all parser handlers.
@@ -547,4 +548,5 @@ func (h *InputHandler) Dispose() {
 	h.OnRequestRefreshRowsEmitter.Dispose()
 	h.OnColorEmitter.Dispose()
 	h.OnRequestSyncScrollBarEmitter.Dispose()
+	h.OnRequestColorSchemeQueryEmitter.Dispose()
 }

@@ -40,14 +40,15 @@ type Terminal struct {
 	inputHandler      *InputHandler
 
 	// Public event emitters (forwarded from sub-components).
-	OnBellEmitter           EventEmitter[struct{}]
-	OnTitleChangeEmitter    EventEmitter[string]
-	OnIconNameChangeEmitter EventEmitter[string]
-	OnLineFeedEmitter       EventEmitter[struct{}]
-	OnCursorMoveEmitter     EventEmitter[struct{}]
-	OnResizeEmitter         EventEmitter[BufferResizeEvent]
-	OnScrollEmitter         EventEmitter[int]
-	OnRenderEmitter         EventEmitter[RowRange]
+	OnBellEmitter                    EventEmitter[struct{}]
+	OnTitleChangeEmitter             EventEmitter[string]
+	OnIconNameChangeEmitter          EventEmitter[string]
+	OnLineFeedEmitter                EventEmitter[struct{}]
+	OnCursorMoveEmitter              EventEmitter[struct{}]
+	OnResizeEmitter                  EventEmitter[BufferResizeEvent]
+	OnScrollEmitter                  EventEmitter[int]
+	OnRenderEmitter                  EventEmitter[RowRange]
+	OnRequestColorSchemeQueryEmitter EventEmitter[struct{}]
 }
 
 // New creates a new Terminal with the given options.
@@ -84,6 +85,7 @@ func New(opts ...Option) *Terminal {
 	ih.OnLineFeedEmitter.Event(func(struct{}) { t.OnLineFeedEmitter.Fire(struct{}{}) })
 	ih.OnCursorMoveEmitter.Event(func(struct{}) { t.OnCursorMoveEmitter.Fire(struct{}{}) })
 	ih.OnRequestRefreshRowsEmitter.Event(func(r RowRange) { t.OnRenderEmitter.Fire(r) })
+	ih.OnRequestColorSchemeQueryEmitter.Event(func(struct{}) { t.OnRequestColorSchemeQueryEmitter.Fire(struct{}{}) })
 
 	// Forward buffer service events.
 	bufSvc.OnResizeEmitter.Event(func(e BufferResizeEvent) { t.OnResizeEmitter.Fire(e) })
@@ -252,6 +254,12 @@ func (t *Terminal) OnRender(fn func(RowRange)) Disposable {
 	return t.OnRenderEmitter.Event(fn)
 }
 
+// OnRequestColorSchemeQuery subscribes to DSR 996 color scheme query events.
+// Fired when the client sends CSI ? 996 n while color scheme updates (DECSET 2031) are enabled.
+func (t *Terminal) OnRequestColorSchemeQuery(fn func()) Disposable {
+	return t.OnRequestColorSchemeQueryEmitter.Event(func(struct{}) { fn() })
+}
+
 // OnColor subscribes to color palette query/set/restore events (OSC 4/10/11/12).
 func (t *Terminal) OnColor(fn func([]ColorEvent)) Disposable {
 	return t.inputHandler.OnColorEmitter.Event(fn)
@@ -401,4 +409,5 @@ func (t *Terminal) Dispose() {
 	t.OnResizeEmitter.Dispose()
 	t.OnScrollEmitter.Dispose()
 	t.OnRenderEmitter.Dispose()
+	t.OnRequestColorSchemeQueryEmitter.Dispose()
 }

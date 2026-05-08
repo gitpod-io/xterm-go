@@ -1516,3 +1516,80 @@ func TestWindowOptionsPopIconNameEmptyStack(t *testing.T) {
 	}
 }
 
+func TestDSR996ColorSchemeQuery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("fires_when_color_scheme_updates_enabled", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		fired := 0
+		h.OnRequestColorSchemeQueryEmitter.Event(func(struct{}) {
+			fired++
+		})
+
+		// Enable color scheme updates (DECSET 2031).
+		h.ParseString("\x1b[?2031h")
+		// Send DSR 996.
+		h.ParseString("\x1b[?996n")
+
+		if fired != 1 {
+			t.Errorf("expected OnRequestColorSchemeQuery to fire once, got %d", fired)
+		}
+	})
+
+	t.Run("does_not_fire_when_color_scheme_updates_disabled", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		fired := 0
+		h.OnRequestColorSchemeQueryEmitter.Event(func(struct{}) {
+			fired++
+		})
+
+		// Do NOT enable color scheme updates — send DSR 996 directly.
+		h.ParseString("\x1b[?996n")
+
+		if fired != 0 {
+			t.Errorf("expected OnRequestColorSchemeQuery not to fire, got %d", fired)
+		}
+	})
+
+	t.Run("does_not_fire_after_color_scheme_updates_reset", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		fired := 0
+		h.OnRequestColorSchemeQueryEmitter.Event(func(struct{}) {
+			fired++
+		})
+
+		// Enable then disable color scheme updates.
+		h.ParseString("\x1b[?2031h")
+		h.ParseString("\x1b[?2031l")
+		// Send DSR 996.
+		h.ParseString("\x1b[?996n")
+
+		if fired != 0 {
+			t.Errorf("expected OnRequestColorSchemeQuery not to fire after reset, got %d", fired)
+		}
+	})
+
+	t.Run("dsr6_still_works", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		var response string
+		h.coreService.OnDataEmitter.Event(func(s string) {
+			response = s
+		})
+
+		// Move cursor to row 5, col 10.
+		h.ParseString("\x1b[5;10H")
+		// Send DSR 6 (cursor position report).
+		h.ParseString("\x1b[?6n")
+
+		expected := "\x1b[?5;10R"
+		if response != expected {
+			t.Errorf("DSR 6 response = %q, want %q", response, expected)
+		}
+	})
+}
+
+
