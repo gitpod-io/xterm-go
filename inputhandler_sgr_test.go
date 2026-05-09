@@ -547,3 +547,4 @@ func TestSGR_MultipleResets(t *testing.T) {
 		t.Errorf("bg not reset: got %08x, want %08x", h.curAttrData.Bg&bgMask, def.Bg&bgMask)
 	}
 }
+

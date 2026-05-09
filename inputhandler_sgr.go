@@ -145,6 +145,14 @@ func (h *InputHandler) charAttributes(params *Params) bool {
 			attr.Extended = attr.extended().Clone()
 			attr.Extended.SetUnderlineColor(0)
 			attr.UpdateExtended()
+
+		case p == 221:
+			// kitty extension: reset bold only (leaves faint intact)
+			attr.Fg &^= FgFlagBold
+
+		case p == 222:
+			// kitty extension: reset faint/dim only (leaves bold intact)
+			attr.Bg &^= BgFlagDim
 		}
 	}
 	return true
