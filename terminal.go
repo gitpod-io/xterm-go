@@ -48,7 +48,8 @@ type Terminal struct {
 	OnResizeEmitter                  EventEmitter[BufferResizeEvent]
 	OnScrollEmitter                  EventEmitter[int]
 	OnRenderEmitter                  EventEmitter[RowRange]
-	OnRequestColorSchemeQueryEmitter EventEmitter[struct{}]
+	OnRequestColorSchemeQueryEmitter        EventEmitter[struct{}]
+	OnRequestWindowsOptionsReportEmitter    EventEmitter[WindowsOptionsReportType]
 }
 
 // New creates a new Terminal with the given options.
@@ -86,6 +87,7 @@ func New(opts ...Option) *Terminal {
 	ih.OnCursorMoveEmitter.Event(func(struct{}) { t.OnCursorMoveEmitter.Fire(struct{}{}) })
 	ih.OnRequestRefreshRowsEmitter.Event(func(r RowRange) { t.OnRenderEmitter.Fire(r) })
 	ih.OnRequestColorSchemeQueryEmitter.Event(func(struct{}) { t.OnRequestColorSchemeQueryEmitter.Fire(struct{}{}) })
+	ih.OnRequestWindowsOptionsReportEmitter.Event(func(rt WindowsOptionsReportType) { t.OnRequestWindowsOptionsReportEmitter.Fire(rt) })
 
 	// Forward buffer service events.
 	bufSvc.OnResizeEmitter.Event(func(e BufferResizeEvent) { t.OnResizeEmitter.Fire(e) })
@@ -260,6 +262,11 @@ func (t *Terminal) OnRequestColorSchemeQuery(fn func()) Disposable {
 	return t.OnRequestColorSchemeQueryEmitter.Event(func(struct{}) { fn() })
 }
 
+// OnRequestWindowsOptionsReport subscribes to window-options report requests (CSI 14 t, CSI 16 t).
+func (t *Terminal) OnRequestWindowsOptionsReport(fn func(WindowsOptionsReportType)) Disposable {
+	return t.OnRequestWindowsOptionsReportEmitter.Event(fn)
+}
+
 // OnColor subscribes to color palette query/set/restore events (OSC 4/10/11/12).
 func (t *Terminal) OnColor(fn func([]ColorEvent)) Disposable {
 	return t.inputHandler.OnColorEmitter.Event(fn)
@@ -410,4 +417,5 @@ func (t *Terminal) Dispose() {
 	t.OnScrollEmitter.Dispose()
 	t.OnRenderEmitter.Dispose()
 	t.OnRequestColorSchemeQueryEmitter.Dispose()
+	t.OnRequestWindowsOptionsReportEmitter.Dispose()
 }

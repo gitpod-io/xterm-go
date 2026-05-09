@@ -5,6 +5,10 @@ import (
 	"strings"
 )
 
+// titleStackLimit is the maximum number of entries in the title/icon name push
+// stacks. Matches upstream xterm.js STACK_LIMIT (InputHandler.ts:47).
+const titleStackLimit = 10
+
 // moveCursor moves the cursor by a relative offset, clamping to valid range.
 func (h *InputHandler) moveCursor(x, y int) {
 	h.restrictCursor()
@@ -946,9 +950,15 @@ func (h *InputHandler) windowOptions(params *Params) bool {
 		}
 		if ps2 == 0 || ps2 == 2 {
 			h.windowTitleStack = append(h.windowTitleStack, h.windowTitle)
+			if len(h.windowTitleStack) > titleStackLimit {
+				h.windowTitleStack = h.windowTitleStack[len(h.windowTitleStack)-titleStackLimit:]
+			}
 		}
 		if ps2 == 0 || ps2 == 1 {
 			h.iconNameStack = append(h.iconNameStack, h.iconName)
+			if len(h.iconNameStack) > titleStackLimit {
+				h.iconNameStack = h.iconNameStack[len(h.iconNameStack)-titleStackLimit:]
+			}
 		}
 	case 23:
 		// Pop title from stack.
@@ -972,8 +982,21 @@ func (h *InputHandler) windowOptions(params *Params) bool {
 				h.OnIconNameChangeEmitter.Fire(name)
 			}
 		}
+	case 14:
+		// Report window size in pixels. Ps2 == 2 means cell size (handled by case 16 upstream),
+		// otherwise report window size.
+		ps2 := int32(0)
+		if params.Length >= 2 {
+			ps2 = params.Params[1]
+		}
+		if ps2 != 2 {
+			h.OnRequestWindowsOptionsReportEmitter.Fire(GetWinSizePixels)
+		}
+	case 16:
+		// Report cell size in pixels.
+		h.OnRequestWindowsOptionsReportEmitter.Fire(GetCellSizePixels)
 	default:
-		// Other sub-commands (14, 16, etc.) are renderer-specific; silently ignore.
+		// Other sub-commands are renderer-specific; silently ignore.
 	}
 	return true
 }

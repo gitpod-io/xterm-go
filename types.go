@@ -177,6 +177,16 @@ type DeleteEvent struct {
 // BufferIndex denotes a position in the buffer: [rowIndex, colIndex].
 type BufferIndex [2]int
 
+// WindowsOptionsReportType identifies a window-options report request (CSI t).
+type WindowsOptionsReportType int
+
+const (
+	// GetWinSizePixels requests the window size in pixels (CSI 14 t).
+	GetWinSizePixels WindowsOptionsReportType = 0
+	// GetCellSizePixels requests the cell size in pixels (CSI 16 t).
+	GetCellSizePixels WindowsOptionsReportType = 1
+)
+
 // KittyKeyboardState tracks the kitty keyboard protocol state.
 type KittyKeyboardState struct {
 	Flags     int

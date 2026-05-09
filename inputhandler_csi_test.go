@@ -1592,4 +1592,249 @@ func TestDSR996ColorSchemeQuery(t *testing.T) {
 	})
 }
 
+func TestWindowOptionsTitleStackLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("title_stack_capped_at_10", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+
+		// Set and push 15 titles.
+		for i := 0; i < 15; i++ {
+			h.ParseString("\x1b]2;title\x07")
+			h.ParseString("\x1b[22;2t") // push title
+		}
+
+		// Pop all — should get at most 10.
+		popCount := 0
+		for i := 0; i < 15; i++ {
+			fired := false
+			d := h.OnTitleChangeEmitter.Event(func(s string) { fired = true })
+			h.ParseString("\x1b[23;2t") // pop title
+			if fired {
+				popCount++
+			}
+			d.Dispose()
+		}
+		if popCount != titleStackLimit {
+			t.Errorf("popped %d titles, want exactly %d", popCount, titleStackLimit)
+		}
+	})
+
+	t.Run("icon_name_stack_capped_at_10", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+
+		// Set and push 15 icon names.
+		for i := 0; i < 15; i++ {
+			h.ParseString("\x1b]1;icon\x07")
+			h.ParseString("\x1b[22;1t") // push icon name
+		}
+
+		// Pop all — should get at most 10.
+		popCount := 0
+		for i := 0; i < 15; i++ {
+			fired := false
+			d := h.OnIconNameChangeEmitter.Event(func(s string) { fired = true })
+			h.ParseString("\x1b[23;1t") // pop icon name
+			if fired {
+				popCount++
+			}
+			d.Dispose()
+		}
+		if popCount != titleStackLimit {
+			t.Errorf("popped %d icon names, want exactly %d", popCount, titleStackLimit)
+		}
+	})
+
+	t.Run("both_stacks_capped_at_10", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+
+		// Push 12 entries for both title and icon name (ps2=0).
+		for i := 0; i < 12; i++ {
+			h.ParseString("\x1b]0;both\x07") // OSC 0 sets both
+			h.ParseString("\x1b[22;0t")       // push both
+		}
+
+		titlePops := 0
+		iconPops := 0
+		for i := 0; i < 12; i++ {
+			tFired := false
+			iFired := false
+			dt := h.OnTitleChangeEmitter.Event(func(s string) { tFired = true })
+			di := h.OnIconNameChangeEmitter.Event(func(s string) { iFired = true })
+			h.ParseString("\x1b[23;0t") // pop both
+			if tFired {
+				titlePops++
+			}
+			if iFired {
+				iconPops++
+			}
+			dt.Dispose()
+			di.Dispose()
+		}
+		if titlePops != titleStackLimit {
+			t.Errorf("title pops = %d, want %d", titlePops, titleStackLimit)
+		}
+		if iconPops != titleStackLimit {
+			t.Errorf("icon pops = %d, want %d", iconPops, titleStackLimit)
+		}
+	})
+
+	t.Run("stack_preserves_most_recent_entries", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+
+		// Push 12 titles with distinct values; the first 2 should be evicted.
+		for i := 0; i < 12; i++ {
+			h.ParseString("\x1b]2;t" + string(rune('A'+i)) + "\x07")
+			h.ParseString("\x1b[22;2t")
+		}
+
+		// Pop returns from top of stack (most recent push first).
+		// Pushed: tA tB tC tD tE tF tG tH tI tJ tK tL
+		// After trim: tC tD tE tF tG tH tI tJ tK tL (oldest 2 evicted)
+		// Pop order: tL, tK, tJ, ...
+		var got string
+		d := h.OnTitleChangeEmitter.Event(func(s string) { got = s })
+		h.ParseString("\x1b[23;2t")
+		d.Dispose()
+
+		expected := "tL"
+		if got != expected {
+			t.Errorf("first pop = %q, want %q", got, expected)
+		}
+	})
+}
+
+func TestWindowOptionsCSI14t(t *testing.T) {
+	t.Parallel()
+
+	t.Run("fires_GetWinSizePixels", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+
+		var got WindowsOptionsReportType
+		fired := false
+		d := h.OnRequestWindowsOptionsReportEmitter.Event(func(rt WindowsOptionsReportType) {
+			fired = true
+			got = rt
+		})
+		defer d.Dispose()
+
+		h.ParseString("\x1b[14t")
+		if !fired {
+			t.Fatal("OnRequestWindowsOptionsReport not fired for CSI 14 t")
+		}
+		if got != GetWinSizePixels {
+			t.Errorf("report type = %d, want GetWinSizePixels (%d)", got, GetWinSizePixels)
+		}
+	})
+
+	t.Run("ps2_not_2_fires_GetWinSizePixels", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+
+		fired := false
+		d := h.OnRequestWindowsOptionsReportEmitter.Event(func(rt WindowsOptionsReportType) {
+			fired = true
+		})
+		defer d.Dispose()
+
+		h.ParseString("\x1b[14;1t")
+		if !fired {
+			t.Fatal("OnRequestWindowsOptionsReport not fired for CSI 14;1 t")
+		}
+	})
+
+	t.Run("ps2_eq_2_does_not_fire", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+
+		fired := false
+		d := h.OnRequestWindowsOptionsReportEmitter.Event(func(rt WindowsOptionsReportType) {
+			fired = true
+		})
+		defer d.Dispose()
+
+		h.ParseString("\x1b[14;2t")
+		if fired {
+			t.Error("OnRequestWindowsOptionsReport should not fire for CSI 14;2 t")
+		}
+	})
+}
+
+func TestWindowOptionsCSI16t(t *testing.T) {
+	t.Parallel()
+
+	t.Run("fires_GetCellSizePixels", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+
+		var got WindowsOptionsReportType
+		fired := false
+		d := h.OnRequestWindowsOptionsReportEmitter.Event(func(rt WindowsOptionsReportType) {
+			fired = true
+			got = rt
+		})
+		defer d.Dispose()
+
+		h.ParseString("\x1b[16t")
+		if !fired {
+			t.Fatal("OnRequestWindowsOptionsReport not fired for CSI 16 t")
+		}
+		if got != GetCellSizePixels {
+			t.Errorf("report type = %d, want GetCellSizePixels (%d)", got, GetCellSizePixels)
+		}
+	})
+}
+
+func TestWindowOptionsReportTerminalLevel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CSI_14t_forwarded_to_terminal", func(t *testing.T) {
+		t.Parallel()
+		term := newTestTerminal(80, 24)
+		defer term.Dispose()
+
+		var got WindowsOptionsReportType
+		fired := false
+		d := term.OnRequestWindowsOptionsReport(func(rt WindowsOptionsReportType) {
+			fired = true
+			got = rt
+		})
+		defer d.Dispose()
+
+		term.WriteString("\x1b[14t")
+		if !fired {
+			t.Fatal("Terminal.OnRequestWindowsOptionsReport not fired for CSI 14 t")
+		}
+		if got != GetWinSizePixels {
+			t.Errorf("report type = %d, want GetWinSizePixels (%d)", got, GetWinSizePixels)
+		}
+	})
+
+	t.Run("CSI_16t_forwarded_to_terminal", func(t *testing.T) {
+		t.Parallel()
+		term := newTestTerminal(80, 24)
+		defer term.Dispose()
+
+		var got WindowsOptionsReportType
+		fired := false
+		d := term.OnRequestWindowsOptionsReport(func(rt WindowsOptionsReportType) {
+			fired = true
+			got = rt
+		})
+		defer d.Dispose()
+
+		term.WriteString("\x1b[16t")
+		if !fired {
+			t.Fatal("Terminal.OnRequestWindowsOptionsReport not fired for CSI 16 t")
+		}
+		if got != GetCellSizePixels {
+			t.Errorf("report type = %d, want GetCellSizePixels (%d)", got, GetCellSizePixels)
+		}
+	})
+}
 
