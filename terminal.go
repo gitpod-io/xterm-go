@@ -373,23 +373,19 @@ func (t *Terminal) Clear() {
 		return
 	}
 
-	// Clear rows above the cursor.
-	for i := buf.YBase + buf.Y - 1; i >= buf.YBase; i-- {
-		line := buf.Lines.Get(i)
-		if line != nil && line.GetTrimmedLength() != 0 {
-			break
-		}
-		if i > buf.YBase+buf.Y-1 {
-			continue
-		}
-		buf.Lines.Set(i, buf.GetBlankLine(nil, false))
-	}
+	// Copy the current cursor line to position 0.
+	buf.Lines.Set(0, buf.Lines.Get(buf.YBase+buf.Y))
+	buf.Lines.SetLength(1)
 
-	// Trim scrollback.
-	buf.Lines.TrimStart(buf.YBase)
-	buf.YBase = 0
+	// Reset scroll and cursor positions.
 	buf.YDisp = 0
-	t.bufferService.IsUserScrolling = false
+	buf.YBase = 0
+	buf.Y = 0
+
+	// Fill remaining viewport rows with blank lines.
+	for i := 1; i < t.bufferService.Rows; i++ {
+		buf.Lines.Push(buf.GetBlankLine(nil, false))
+	}
 
 	t.OnScrollEmitter.Fire(buf.YDisp)
 }

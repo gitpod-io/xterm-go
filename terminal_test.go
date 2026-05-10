@@ -982,9 +982,9 @@ func TestTerminalClear(t *testing.T) {
 	t.Parallel()
 
 	type Expectation struct {
+		Y               int
 		YBase           int
 		YDisp           int
-		IsUserScrolling bool
 	}
 
 	term := newTestTerminal(80, 5)
@@ -996,17 +996,60 @@ func TestTerminalClear(t *testing.T) {
 	term.Clear()
 
 	got := Expectation{
+		Y:               term.Buffer().Y,
 		YBase:           term.Buffer().YBase,
 		YDisp:           term.Buffer().YDisp,
-		IsUserScrolling: term.bufferService.IsUserScrolling,
 	}
 	expected := Expectation{
+		Y:               0,
 		YBase:           0,
 		YDisp:           0,
-		IsUserScrolling: false,
 	}
 	if diff := cmp.Diff(expected, got); diff != "" {
 		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestTerminalClearMovesCurrentLineToTop(t *testing.T) {
+	t.Parallel()
+
+	term := New(WithCols(10), WithRows(5), WithScrollback(100))
+	for i := 0; i < 10; i++ {
+		term.WriteString(fmt.Sprintf("line%d\r\n", i))
+	}
+	term.WriteString("current")
+
+	term.Clear()
+
+	buf := term.Buffer()
+	if buf.Y != 0 {
+		t.Errorf("Y = %d, want 0", buf.Y)
+	}
+
+	line0 := buf.Lines.Get(0)
+	if line0 == nil {
+		t.Fatal("line 0 is nil")
+	}
+	text := line0.TranslateToString(true, 0, -1)
+	if text != "current" {
+		t.Errorf("line 0 text = %q, want %q", text, "current")
+	}
+
+	// Remaining viewport rows should be blank.
+	for i := 1; i < 5; i++ {
+		line := buf.Lines.Get(i)
+		if line == nil {
+			t.Fatalf("line %d is nil", i)
+		}
+		trimmed := line.GetTrimmedLength()
+		if trimmed != 0 {
+			t.Errorf("line %d trimmed length = %d, want 0", i, trimmed)
+		}
+	}
+
+	// Buffer length should equal the number of rows (no scrollback).
+	if buf.Lines.Length() != 5 {
+		t.Errorf("buffer length = %d, want 5", buf.Lines.Length())
 	}
 }
 
