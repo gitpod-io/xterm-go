@@ -48,6 +48,7 @@ type Terminal struct {
 	OnResizeEmitter                  EventEmitter[BufferResizeEvent]
 	OnScrollEmitter                  EventEmitter[int]
 	OnRenderEmitter                  EventEmitter[RowRange]
+	OnWriteParsedEmitter             EventEmitter[struct{}]
 	OnRequestColorSchemeQueryEmitter        EventEmitter[struct{}]
 	OnRequestWindowsOptionsReportEmitter    EventEmitter[WindowsOptionsReportType]
 }
@@ -105,12 +106,14 @@ func New(opts ...Option) *Terminal {
 // Write writes data to the terminal, implementing io.Writer.
 func (t *Terminal) Write(p []byte) (n int, err error) {
 	t.inputHandler.Parse(p)
+	t.OnWriteParsedEmitter.Fire(struct{}{})
 	return len(p), nil
 }
 
 // WriteString writes a string to the terminal.
 func (t *Terminal) WriteString(s string) {
 	t.inputHandler.ParseString(s)
+	t.OnWriteParsedEmitter.Fire(struct{}{})
 }
 
 // Resize changes the terminal dimensions.
@@ -211,6 +214,17 @@ func (t *Terminal) TriggerMouseEvent(ev CoreMouseEvent) bool {
 // OnData registers a callback for data sent from the terminal (e.g. DA responses).
 func (t *Terminal) OnData(fn func(string)) Disposable {
 	return t.coreService.OnDataEmitter.Event(fn)
+}
+
+// OnBinary subscribes to binary data events from the terminal.
+func (t *Terminal) OnBinary(fn func(string)) Disposable {
+	return t.coreService.OnBinaryEmitter.Event(func(data string) { fn(data) })
+}
+
+// OnWriteParsed subscribes to write-parsed events.
+// Fires after each Write/WriteString call completes parsing.
+func (t *Terminal) OnWriteParsed(fn func()) Disposable {
+	return t.OnWriteParsedEmitter.Event(func(struct{}) { fn() })
 }
 
 // OnBell registers a callback for bell events.
@@ -412,6 +426,7 @@ func (t *Terminal) Dispose() {
 	t.OnResizeEmitter.Dispose()
 	t.OnScrollEmitter.Dispose()
 	t.OnRenderEmitter.Dispose()
+	t.OnWriteParsedEmitter.Dispose()
 	t.OnRequestColorSchemeQueryEmitter.Dispose()
 	t.OnRequestWindowsOptionsReportEmitter.Dispose()
 }

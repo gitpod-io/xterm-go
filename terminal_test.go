@@ -1262,5 +1262,87 @@ func TestTerminalOnRequestColorSchemeQueryDispose(t *testing.T) {
 	}
 }
 
+func TestTerminalOnBinary(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	var got []string
+	term.OnBinary(func(data string) { got = append(got, data) })
 
+	// Trigger a binary event via the core service (the plumbing path).
+	term.coreService.TriggerBinaryEvent("\x1b[2J")
 
+	if len(got) != 1 {
+		t.Fatalf("expected 1 OnBinary event, got %d", len(got))
+	}
+	if got[0] != "\x1b[2J" {
+		t.Errorf("OnBinary data = %q, want %q", got[0], "\x1b[2J")
+	}
+}
+
+func TestTerminalOnBinaryDispose(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	count := 0
+	d := term.OnBinary(func(string) { count++ })
+
+	term.coreService.TriggerBinaryEvent("data1")
+	if count != 1 {
+		t.Fatalf("expected 1 fire before dispose, got %d", count)
+	}
+
+	d.Dispose()
+	term.coreService.TriggerBinaryEvent("data2")
+	if count != 1 {
+		t.Errorf("OnBinary fired after Dispose: count = %d, want 1", count)
+	}
+}
+
+func TestTerminalOnWriteParsed(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	count := 0
+	term.OnWriteParsed(func() { count++ })
+
+	term.WriteString("hello")
+	if count != 1 {
+		t.Fatalf("expected 1 OnWriteParsed after WriteString, got %d", count)
+	}
+
+	term.Write([]byte("world"))
+	if count != 2 {
+		t.Fatalf("expected 2 OnWriteParsed after Write, got %d", count)
+	}
+}
+
+func TestTerminalOnWriteParsedDispose(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	count := 0
+	d := term.OnWriteParsed(func() { count++ })
+
+	term.WriteString("hello")
+	if count != 1 {
+		t.Fatalf("expected 1 fire before dispose, got %d", count)
+	}
+
+	d.Dispose()
+	term.WriteString("world")
+	if count != 1 {
+		t.Errorf("OnWriteParsed fired after Dispose: count = %d, want 1", count)
+	}
+}
+
+func TestTerminalOnWriteParsedMultipleWrites(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	count := 0
+	term.OnWriteParsed(func() { count++ })
+
+	// Each write should fire exactly once.
+	for i := range 5 {
+		term.WriteString(fmt.Sprintf("line %d\r\n", i))
+	}
+	if count != 5 {
+		t.Errorf("expected 5 OnWriteParsed fires, got %d", count)
+	}
+}
