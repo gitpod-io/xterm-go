@@ -667,10 +667,12 @@ func (h *InputHandler) setModePrivate(params *Params) bool {
 			fallthrough
 		case 47, 1047:
 			// Swap kitty keyboard flags: save main, restore alt
-			kk := &h.coreService.KittyKeyboard
-			kk.MainFlags = kk.Flags
-			kk.Flags = kk.AltFlags
-			kk.MainStack, kk.AltStack = kk.AltStack, kk.MainStack
+			if h.optionsService.Options.VtExtensions.KittyKeyboard {
+				kk := &h.coreService.KittyKeyboard
+				kk.MainFlags = kk.Flags
+				kk.Flags = kk.AltFlags
+				kk.MainStack, kk.AltStack = kk.AltStack, kk.MainStack
+			}
 			h.bufferService.Buffers.ActivateAltBuffer(h.eraseAttrData())
 			h.coreService.IsCursorInitialized = true
 			h.OnRequestRefreshRowsEmitter.Fire(RowRange{})
@@ -680,9 +682,13 @@ func (h *InputHandler) setModePrivate(params *Params) bool {
 		case 2026:
 			h.coreService.DecPrivateModes.SynchronizedOutput = true
 		case 2031:
-			h.coreService.DecPrivateModes.ColorSchemeUpdates = true
+			if h.optionsService.Options.VtExtensions.colorSchemeQueryEnabled() {
+				h.coreService.DecPrivateModes.ColorSchemeUpdates = true
+			}
 		case 9001:
-			h.coreService.DecPrivateModes.Win32InputMode = true
+			if h.optionsService.Options.VtExtensions.Win32InputMode {
+				h.coreService.DecPrivateModes.Win32InputMode = true
+			}
 		}
 	}
 	return true
@@ -717,10 +723,12 @@ func (h *InputHandler) resetModePrivate(params *Params) bool {
 			h.RestoreCursor()
 		case 1049:
 			// Swap kitty keyboard flags: save alt, restore main
-			kk := &h.coreService.KittyKeyboard
-			kk.AltFlags = kk.Flags
-			kk.Flags = kk.MainFlags
-			kk.MainStack, kk.AltStack = kk.AltStack, kk.MainStack
+			if h.optionsService.Options.VtExtensions.KittyKeyboard {
+				kk := &h.coreService.KittyKeyboard
+				kk.AltFlags = kk.Flags
+				kk.Flags = kk.MainFlags
+				kk.MainStack, kk.AltStack = kk.AltStack, kk.MainStack
+			}
 			h.bufferService.Buffers.ActivateNormalBuffer()
 			h.RestoreCursor()
 			h.coreService.IsCursorInitialized = true
@@ -728,10 +736,12 @@ func (h *InputHandler) resetModePrivate(params *Params) bool {
 			h.OnRequestSyncScrollBarEmitter.Fire(struct{}{})
 		case 47, 1047:
 			// Swap kitty keyboard flags: save alt, restore main
-			kk := &h.coreService.KittyKeyboard
-			kk.AltFlags = kk.Flags
-			kk.Flags = kk.MainFlags
-			kk.MainStack, kk.AltStack = kk.AltStack, kk.MainStack
+			if h.optionsService.Options.VtExtensions.KittyKeyboard {
+				kk := &h.coreService.KittyKeyboard
+				kk.AltFlags = kk.Flags
+				kk.Flags = kk.MainFlags
+				kk.MainStack, kk.AltStack = kk.AltStack, kk.MainStack
+			}
 			h.bufferService.Buffers.ActivateNormalBuffer()
 			h.coreService.IsCursorInitialized = true
 			h.OnRequestRefreshRowsEmitter.Fire(RowRange{})
@@ -742,9 +752,13 @@ func (h *InputHandler) resetModePrivate(params *Params) bool {
 			h.coreService.DecPrivateModes.SynchronizedOutput = false
 			h.OnRequestRefreshRowsEmitter.Fire(RowRange{})
 		case 2031:
-			h.coreService.DecPrivateModes.ColorSchemeUpdates = false
+			if h.optionsService.Options.VtExtensions.colorSchemeQueryEnabled() {
+				h.coreService.DecPrivateModes.ColorSchemeUpdates = false
+			}
 		case 9001:
-			h.coreService.DecPrivateModes.Win32InputMode = false
+			if h.optionsService.Options.VtExtensions.Win32InputMode {
+				h.coreService.DecPrivateModes.Win32InputMode = false
+			}
 		}
 	}
 	return true
@@ -824,8 +838,14 @@ func (h *InputHandler) privateModeSetting(mode int) int {
 	case 2026:
 		return boolToPm(dm.SynchronizedOutput)
 	case 2031:
+		if !h.optionsService.Options.VtExtensions.colorSchemeQueryEnabled() {
+			return 0
+		}
 		return boolToPm(dm.ColorSchemeUpdates)
 	case 9001:
+		if !h.optionsService.Options.VtExtensions.Win32InputMode {
+			return 0
+		}
 		return boolToPm(dm.Win32InputMode)
 	default:
 		return 0 // not recognized
@@ -862,6 +882,9 @@ const kittyKeyboardMaxStackSize = 10
 // kittyKeyboardSet handles CSI = Ps ; Pm u — set kitty keyboard flags.
 // Ps = flags value (default 0), Pm = mode: 1=set (OR), 2=clear (AND NOT), 3=assign (default 1).
 func (h *InputHandler) kittyKeyboardSet(params *Params) bool {
+	if !h.optionsService.Options.VtExtensions.KittyKeyboard {
+		return true
+	}
 	kk := &h.coreService.KittyKeyboard
 	flags := 0
 	if params.Params[0] > 0 {
@@ -885,6 +908,9 @@ func (h *InputHandler) kittyKeyboardSet(params *Params) bool {
 // kittyKeyboardQuery handles CSI ? u — query current kitty keyboard flags.
 // Responds with CSI ? <flags> u.
 func (h *InputHandler) kittyKeyboardQuery(params *Params) bool {
+	if !h.optionsService.Options.VtExtensions.KittyKeyboard {
+		return true
+	}
 	buf := h.activeBuffer()
 	shouldScroll := buf.YBase != buf.YDisp
 	h.coreService.TriggerDataEvent(fmt.Sprintf("\x1b[?%du", h.coreService.KittyKeyboard.Flags), false, shouldScroll)
@@ -894,6 +920,9 @@ func (h *InputHandler) kittyKeyboardQuery(params *Params) bool {
 // kittyKeyboardPush handles CSI > Ps u — push flags onto stack.
 // Pushes current flags, then sets flags = Ps (default 0).
 func (h *InputHandler) kittyKeyboardPush(params *Params) bool {
+	if !h.optionsService.Options.VtExtensions.KittyKeyboard {
+		return true
+	}
 	kk := &h.coreService.KittyKeyboard
 	if len(kk.MainStack) < kittyKeyboardMaxStackSize {
 		kk.MainStack = append(kk.MainStack, kk.Flags)
@@ -910,6 +939,9 @@ func (h *InputHandler) kittyKeyboardPush(params *Params) bool {
 // Ps = number of entries to pop (default 1). Restores flags from the last popped entry.
 // If stack is empty, sets flags = 0.
 func (h *InputHandler) kittyKeyboardPop(params *Params) bool {
+	if !h.optionsService.Options.VtExtensions.KittyKeyboard {
+		return true
+	}
 	kk := &h.coreService.KittyKeyboard
 	n := 1
 	if params.Params[0] > 0 {

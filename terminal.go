@@ -28,6 +28,11 @@ func WithScreenReaderMode(on bool) Option {
 	return func(o *TerminalOptions) { o.ScreenReaderMode = on }
 }
 
+// WithVtExtensions configures non-standard VT extensions.
+func WithVtExtensions(ext VtExtensions) Option {
+	return func(o *TerminalOptions) { o.VtExtensions = ext }
+}
+
 // Terminal is a headless terminal emulator.
 type Terminal struct {
 	optionsService    *OptionsService

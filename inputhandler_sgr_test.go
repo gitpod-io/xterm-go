@@ -548,3 +548,72 @@ func TestSGR_MultipleResets(t *testing.T) {
 	}
 }
 
+func TestVtExtensions_KittySgrBoldFaintControlGating(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SGR_221_resets_bold_when_enabled", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		h.ParseString("\x1b[1m")
+		if h.curAttrData.Fg&FgFlagBold == 0 {
+			t.Fatal("precondition: bold should be set")
+		}
+		h.ParseString("\x1b[221m")
+		if h.curAttrData.Fg&FgFlagBold != 0 {
+			t.Error("SGR 221 should reset bold when kittySgrBoldFaintControl is enabled")
+		}
+	})
+
+	t.Run("SGR_221_ignored_when_disabled", func(t *testing.T) {
+		t.Parallel()
+		f := false
+		h := newTestInputHandlerWithVtExt(80, 24, VtExtensions{KittySgrBoldFaintControl: &f})
+		h.ParseString("\x1b[1m")
+		if h.curAttrData.Fg&FgFlagBold == 0 {
+			t.Fatal("precondition: bold should be set")
+		}
+		h.ParseString("\x1b[221m")
+		if h.curAttrData.Fg&FgFlagBold == 0 {
+			t.Error("SGR 221 should be ignored when kittySgrBoldFaintControl is disabled")
+		}
+	})
+
+	t.Run("SGR_222_resets_dim_when_enabled", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		h.ParseString("\x1b[2m")
+		if h.curAttrData.Bg&BgFlagDim == 0 {
+			t.Fatal("precondition: dim should be set")
+		}
+		h.ParseString("\x1b[222m")
+		if h.curAttrData.Bg&BgFlagDim != 0 {
+			t.Error("SGR 222 should reset dim when kittySgrBoldFaintControl is enabled")
+		}
+	})
+
+	t.Run("SGR_222_ignored_when_disabled", func(t *testing.T) {
+		t.Parallel()
+		f := false
+		h := newTestInputHandlerWithVtExt(80, 24, VtExtensions{KittySgrBoldFaintControl: &f})
+		h.ParseString("\x1b[2m")
+		if h.curAttrData.Bg&BgFlagDim == 0 {
+			t.Fatal("precondition: dim should be set")
+		}
+		h.ParseString("\x1b[222m")
+		if h.curAttrData.Bg&BgFlagDim == 0 {
+			t.Error("SGR 222 should be ignored when kittySgrBoldFaintControl is disabled")
+		}
+	})
+
+	t.Run("SGR_221_222_enabled_by_default_when_nil", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandlerWithVtExt(80, 24, VtExtensions{})
+		h.ParseString("\x1b[1m")
+		h.ParseString("\x1b[221m")
+		if h.curAttrData.Fg&FgFlagBold != 0 {
+			t.Error("SGR 221 should work when KittySgrBoldFaintControl is nil (default true)")
+		}
+	})
+}
+
+

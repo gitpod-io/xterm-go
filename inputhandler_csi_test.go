@@ -6,12 +6,29 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-// newTestInputHandler creates an InputHandler with default services for testing.
+// allVtExtensions returns a VtExtensions with every extension enabled.
+func allVtExtensions() VtExtensions {
+	t := true
+	return VtExtensions{
+		KittyKeyboard:            true,
+		ColorSchemeQuery:         &t,
+		Win32InputMode:           true,
+		KittySgrBoldFaintControl: &t,
+	}
+}
+
+// newTestInputHandler creates an InputHandler with all VtExtensions enabled.
 func newTestInputHandler(cols, rows int) *InputHandler {
+	return newTestInputHandlerWithVtExt(cols, rows, allVtExtensions())
+}
+
+// newTestInputHandlerWithVtExt creates an InputHandler with the given VtExtensions.
+func newTestInputHandlerWithVtExt(cols, rows int, ext VtExtensions) *InputHandler {
 	opts := DefaultOptions()
 	opts.Cols = cols
 	opts.Rows = rows
 	opts.Scrollback = 1000
+	opts.VtExtensions = ext
 	optsSvc := NewOptionsService(&opts)
 	bufSvc := NewBufferService(optsSvc)
 	charSvc := NewCharsetService()
@@ -577,6 +594,7 @@ func newTestInputHandlerWithTermName(cols, rows int, termName string) *InputHand
 	opts.Rows = rows
 	opts.Scrollback = 1000
 	opts.TermName = termName
+	opts.VtExtensions = allVtExtensions()
 	optsSvc := NewOptionsService(&opts)
 	bufSvc := NewBufferService(optsSvc)
 	charSvc := NewCharsetService()
@@ -1834,6 +1852,170 @@ func TestWindowOptionsReportTerminalLevel(t *testing.T) {
 		}
 		if got != GetCellSizePixels {
 			t.Errorf("report type = %d, want GetCellSizePixels (%d)", got, GetCellSizePixels)
+		}
+	})
+}
+
+// --- VtExtensions gating tests ---
+
+func TestVtExtensions_Win32InputModeGating(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DECRPM_reports_not_recognized_when_disabled", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandlerWithVtExt(80, 24, VtExtensions{})
+		var response string
+		h.coreService.OnDataEmitter.Event(func(data string) {
+			response = data
+		})
+		h.ParseString("\x1b[?9001$p")
+		expected := "\x1b[?9001;0$y"
+		if response != expected {
+			t.Errorf("expected %q, got %q", expected, response)
+		}
+	})
+
+	t.Run("DECSET_ignored_when_disabled", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandlerWithVtExt(80, 24, VtExtensions{})
+		h.ParseString("\x1b[?9001h")
+		if h.coreService.DecPrivateModes.Win32InputMode {
+			t.Error("Win32InputMode should remain false when vtExtensions.Win32InputMode is disabled")
+		}
+	})
+
+	t.Run("DECRST_ignored_when_disabled", func(t *testing.T) {
+		t.Parallel()
+		ext := allVtExtensions()
+		h := newTestInputHandlerWithVtExt(80, 24, ext)
+		h.ParseString("\x1b[?9001h")
+		if !h.coreService.DecPrivateModes.Win32InputMode {
+			t.Fatal("precondition: Win32InputMode should be true")
+		}
+		h.optionsService.Options.VtExtensions.Win32InputMode = false
+		h.ParseString("\x1b[?9001l")
+		if !h.coreService.DecPrivateModes.Win32InputMode {
+			t.Error("Win32InputMode should remain true when vtExtensions.Win32InputMode is disabled")
+		}
+	})
+
+	t.Run("DECRPM_reports_set_when_enabled", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandlerWithVtExt(80, 24, allVtExtensions())
+		var response string
+		h.coreService.OnDataEmitter.Event(func(data string) {
+			response = data
+		})
+		h.ParseString("\x1b[?9001h")
+		h.ParseString("\x1b[?9001$p")
+		expected := "\x1b[?9001;1$y"
+		if response != expected {
+			t.Errorf("expected %q, got %q", expected, response)
+		}
+	})
+}
+
+func TestVtExtensions_ColorSchemeQueryGating(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DECRPM_reports_not_recognized_when_disabled", func(t *testing.T) {
+		t.Parallel()
+		f := false
+		h := newTestInputHandlerWithVtExt(80, 24, VtExtensions{ColorSchemeQuery: &f})
+		var response string
+		h.coreService.OnDataEmitter.Event(func(data string) {
+			response = data
+		})
+		h.ParseString("\x1b[?2031$p")
+		expected := "\x1b[?2031;0$y"
+		if response != expected {
+			t.Errorf("expected %q, got %q", expected, response)
+		}
+	})
+
+	t.Run("DECSET_ignored_when_disabled", func(t *testing.T) {
+		t.Parallel()
+		f := false
+		h := newTestInputHandlerWithVtExt(80, 24, VtExtensions{ColorSchemeQuery: &f})
+		h.ParseString("\x1b[?2031h")
+		if h.coreService.DecPrivateModes.ColorSchemeUpdates {
+			t.Error("ColorSchemeUpdates should remain false when vtExtensions.ColorSchemeQuery is false")
+		}
+	})
+
+	t.Run("enabled_by_default_when_nil", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandlerWithVtExt(80, 24, VtExtensions{})
+		h.ParseString("\x1b[?2031h")
+		if !h.coreService.DecPrivateModes.ColorSchemeUpdates {
+			t.Error("ColorSchemeUpdates should be settable when ColorSchemeQuery is nil (default true)")
+		}
+	})
+}
+
+func TestVtExtensions_KittyKeyboardGating(t *testing.T) {
+	t.Parallel()
+
+	t.Run("set_ignored_when_disabled", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandlerWithVtExt(80, 24, VtExtensions{})
+		h.ParseString("\x1b[=3;3u")
+		if h.coreService.KittyKeyboard.Flags != 0 {
+			t.Errorf("expected flags 0, got %d", h.coreService.KittyKeyboard.Flags)
+		}
+	})
+
+	t.Run("query_no_response_when_disabled", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandlerWithVtExt(80, 24, VtExtensions{})
+		var response string
+		h.coreService.OnDataEmitter.Event(func(data string) {
+			response = data
+		})
+		h.ParseString("\x1b[?u")
+		if response != "" {
+			t.Errorf("expected no response, got %q", response)
+		}
+	})
+
+	t.Run("push_ignored_when_disabled", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandlerWithVtExt(80, 24, VtExtensions{})
+		h.coreService.KittyKeyboard.Flags = 5
+		h.ParseString("\x1b[>3u")
+		if len(h.coreService.KittyKeyboard.MainStack) != 0 {
+			t.Errorf("expected empty stack, got %v", h.coreService.KittyKeyboard.MainStack)
+		}
+		if h.coreService.KittyKeyboard.Flags != 5 {
+			t.Errorf("expected flags unchanged at 5, got %d", h.coreService.KittyKeyboard.Flags)
+		}
+	})
+
+	t.Run("pop_ignored_when_disabled", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandlerWithVtExt(80, 24, VtExtensions{})
+		h.coreService.KittyKeyboard.Flags = 5
+		h.coreService.KittyKeyboard.MainStack = []int{3}
+		h.ParseString("\x1b[<u")
+		if h.coreService.KittyKeyboard.Flags != 5 {
+			t.Errorf("expected flags unchanged at 5, got %d", h.coreService.KittyKeyboard.Flags)
+		}
+		if len(h.coreService.KittyKeyboard.MainStack) != 1 {
+			t.Errorf("expected stack unchanged, got %v", h.coreService.KittyKeyboard.MainStack)
+		}
+	})
+
+	t.Run("alt_buffer_swap_skipped_when_disabled", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandlerWithVtExt(80, 24, VtExtensions{})
+		h.coreService.KittyKeyboard.Flags = 5
+		h.coreService.KittyKeyboard.AltFlags = 2
+		h.ParseString("\x1b[?1049h")
+		if h.coreService.KittyKeyboard.Flags != 5 {
+			t.Errorf("expected flags unchanged at 5, got %d", h.coreService.KittyKeyboard.Flags)
+		}
+		if h.coreService.KittyKeyboard.MainFlags != 0 {
+			t.Errorf("expected MainFlags unchanged at 0, got %d", h.coreService.KittyKeyboard.MainFlags)
 		}
 	})
 }

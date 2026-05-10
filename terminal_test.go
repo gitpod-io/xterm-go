@@ -9,7 +9,13 @@ import (
 )
 
 func newTestTerminal(cols, rows int) *Terminal {
-	return New(WithCols(cols), WithRows(rows), WithScrollback(1000))
+	t := true
+	return New(WithCols(cols), WithRows(rows), WithScrollback(1000), WithVtExtensions(VtExtensions{
+		KittyKeyboard:            true,
+		ColorSchemeQuery:         &t,
+		Win32InputMode:           true,
+		KittySgrBoldFaintControl: &t,
+	}))
 }
 
 func TestTerminalBasicTextOutput(t *testing.T) {

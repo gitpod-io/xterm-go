@@ -37,6 +37,26 @@ type WindowsPty struct {
 	BuildNo int    `json:"buildNumber,omitempty"`
 }
 
+// VtExtensions gates non-standard terminal extensions.
+// Mirrors upstream xterm.js vtExtensions option.
+// Pointer fields default to true when nil.
+type VtExtensions struct {
+	KittyKeyboard            bool  `json:"kittyKeyboard"`
+	ColorSchemeQuery         *bool `json:"colorSchemeQuery,omitempty"`         // default true
+	Win32InputMode           bool  `json:"win32InputMode"`
+	KittySgrBoldFaintControl *bool `json:"kittySgrBoldFaintControl,omitempty"` // default true
+}
+
+// colorSchemeQueryEnabled returns whether the color scheme query extension is enabled.
+func (v *VtExtensions) colorSchemeQueryEnabled() bool {
+	return v.ColorSchemeQuery == nil || *v.ColorSchemeQuery
+}
+
+// kittySgrBoldFaintControlEnabled returns whether the kitty SGR 221/222 extension is enabled.
+func (v *VtExtensions) kittySgrBoldFaintControlEnabled() bool {
+	return v.KittySgrBoldFaintControl == nil || *v.KittySgrBoldFaintControl
+}
+
 // ScrollbarOptions configures the scrollbar.
 type ScrollbarOptions struct {
 	ShowScrollbar bool `json:"showScrollbar"`
@@ -84,6 +104,7 @@ type TerminalOptions struct {
 	ConvertEol                    bool                `json:"convertEol"`
 	TermName                      string              `json:"termName"`
 	WindowsPty                    WindowsPty          `json:"windowsPty"`
+	VtExtensions                  VtExtensions        `json:"vtExtensions"`
 }
 
 // DefaultOptions returns TerminalOptions with sensible defaults matching xterm.js.
@@ -206,6 +227,7 @@ func (s *OptionsService) applyOverrides(opts *TerminalOptions) {
 	s.Options.MacOptionIsMeta = opts.MacOptionIsMeta
 	s.Options.AltClickMovesCursor = opts.AltClickMovesCursor
 	s.Options.WindowsPty = opts.WindowsPty
+	s.Options.VtExtensions = opts.VtExtensions
 }
 
 // SetOption sets a named option and fires the change event if the value changed.

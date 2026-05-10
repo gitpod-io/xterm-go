@@ -148,11 +148,15 @@ func (h *InputHandler) charAttributes(params *Params) bool {
 
 		case p == 221:
 			// kitty extension: reset bold only (leaves faint intact)
-			attr.Fg &^= FgFlagBold
+			if h.optionsService.Options.VtExtensions.kittySgrBoldFaintControlEnabled() {
+				attr.Fg &^= FgFlagBold
+			}
 
 		case p == 222:
 			// kitty extension: reset faint/dim only (leaves bold intact)
-			attr.Bg &^= BgFlagDim
+			if h.optionsService.Options.VtExtensions.kittySgrBoldFaintControlEnabled() {
+				attr.Bg &^= BgFlagDim
+			}
 		}
 	}
 	return true
