@@ -1217,15 +1217,58 @@ func TestTerminalOnA11yTabDispose(t *testing.T) {
 
 func TestTerminalOnA11yChar(t *testing.T) {
 	t.Parallel()
-	// OnA11yChar emitter exists and is subscribable, even if not yet fired
-	// by the current implementation. Verify the accessor returns a valid Disposable.
-	term := newTestTerminal(80, 24)
+	term := New(WithCols(80), WithRows(24), WithScrollback(1000), WithScreenReaderMode(true))
+	var chars []string
+	term.OnA11yChar(func(ch string) {
+		chars = append(chars, ch)
+	})
+
+	term.WriteString("ABC")
+
+	if len(chars) != 3 {
+		t.Fatalf("expected 3 OnA11yChar events, got %d", len(chars))
+	}
+	want := []string{"A", "B", "C"}
+	for i, w := range want {
+		if chars[i] != w {
+			t.Errorf("OnA11yChar[%d] = %q, want %q", i, chars[i], w)
+		}
+	}
+}
+
+func TestTerminalOnA11yCharDisabled(t *testing.T) {
+	t.Parallel()
+	// When ScreenReaderMode is off, OnA11yChar must not fire.
+	term := New(WithCols(80), WithRows(24), WithScrollback(1000))
+	count := 0
+	term.OnA11yChar(func(string) { count++ })
+
+	term.WriteString("ABC")
+
+	if count != 0 {
+		t.Errorf("OnA11yChar fired %d times with ScreenReaderMode disabled, want 0", count)
+	}
+}
+
+func TestTerminalOnA11yCharDispose(t *testing.T) {
+	t.Parallel()
+	term := New(WithCols(80), WithRows(24), WithScrollback(1000), WithScreenReaderMode(true))
 	count := 0
 	d := term.OnA11yChar(func(string) { count++ })
 	if d == nil {
 		t.Fatal("OnA11yChar returned nil Disposable")
 	}
+
+	term.WriteString("A")
+	if count != 1 {
+		t.Fatalf("expected 1 OnA11yChar event, got %d", count)
+	}
+
 	d.Dispose()
+	term.WriteString("B")
+	if count != 1 {
+		t.Errorf("OnA11yChar fired after Dispose: count = %d, want 1", count)
+	}
 }
 
 func TestTerminalOnRequestColorSchemeQuery(t *testing.T) {

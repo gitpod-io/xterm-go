@@ -446,6 +446,10 @@ func (h *InputHandler) Print(data []uint32, start, end int) {
 		precedingJoinState = currentInfo
 		h.parser.SetPrecedingJoinState(precedingJoinState)
 
+		if h.optionsService.Options.ScreenReaderMode {
+			h.OnA11yCharEmitter.Fire(string(rune(code)))
+		}
+
 		if h.getCurrentLinkId() != 0 {
 			h.oscLinkService.AddLineToLink(h.getCurrentLinkId(), buf.YBase+buf.Y)
 		}
