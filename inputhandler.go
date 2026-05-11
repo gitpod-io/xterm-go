@@ -458,7 +458,9 @@ func (h *InputHandler) Print(data []uint32, start, end int) {
 		if buf.X+chWidth-oldWidth > cols {
 			// autowrap - DECAWM
 			if wraparoundMode {
-				buf.X = 0
+				oldRow := bufferRow
+				oldCol := buf.X - oldWidth
+				buf.X = oldWidth
 				buf.Y++
 				if buf.Y == buf.ScrollBottom+1 {
 					buf.Y--
@@ -476,6 +478,15 @@ func (h *InputHandler) Print(data []uint32, start, end int) {
 				bufferRow = buf.Lines.Get(buf.YBase + buf.Y)
 				if bufferRow == nil {
 					return
+				}
+				// When a combining character widens the preceding cell past the
+				// line boundary, copy the widened cell to the new line and clear
+				// the old cells on the previous line.
+				if oldWidth > 0 {
+					bufferRow.CopyCellsFrom(oldRow, oldCol, 0, oldWidth, false)
+					for c := oldCol; c < cols; c++ {
+						oldRow.SetCellFromCodepoint(c, 0, 1, curAttr)
+					}
 				}
 			} else {
 				buf.X = cols - 1

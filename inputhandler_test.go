@@ -377,3 +377,115 @@ func TestPrintCombiningCharacters(t *testing.T) {
 		}
 	})
 }
+
+// ---------------------------------------------------------------------------
+// Print wrap + combining character (issue #41)
+// ---------------------------------------------------------------------------
+
+func TestPrintWrapCombiningCharWidensCell(t *testing.T) {
+	t.Parallel()
+
+	t.Run("combining_at_last_column_no_wrap", func(t *testing.T) {
+		// A combining mark on the last character of a line should NOT wrap;
+		// it should join in-place.
+		t.Parallel()
+		term := newTestTerminal(5, 5)
+		defer term.Dispose()
+		// Fill 5 columns: "abcde", then add combining accent to 'e'.
+		term.WriteString("abcde\u0301")
+		cell := getCellInfo(term, 0, 4)
+		want := cellInfo{Chars: "e\u0301", Width: 1, Combined: true}
+		if diff := cmp.Diff(want, cell); diff != "" {
+			t.Errorf("last col cell (-want +got):\n%s", diff)
+		}
+		// Cursor should still be at col 5 (past end), row 0.
+		if term.CursorX() != 5 {
+			t.Errorf("cursorX = %d, want 5", term.CursorX())
+		}
+		if term.CursorY() != 0 {
+			t.Errorf("cursorY = %d, want 0", term.CursorY())
+		}
+	})
+
+	t.Run("wide_char_wrap_then_combining", func(t *testing.T) {
+		// A wide (width-2) char that wraps to the next line, followed by a
+		// combining mark, should show the combined character on the new line.
+		t.Parallel()
+		term := newTestTerminal(5, 5)
+		defer term.Dispose()
+		// Fill 4 columns, then write a wide char (U+4E16 '世', width 2).
+		// The wide char doesn't fit at col 4 (needs 2 cells), so it wraps.
+		term.WriteString("abcd\u4e16\u0301")
+		// Row 0 should be "abcd" (wide char wrapped away).
+		line0 := term.GetLine(0)
+		if line0 != "abcd" {
+			t.Errorf("row 0 = %q, want %q", line0, "abcd")
+		}
+		// Row 1 should have the wide char with combining mark at col 0.
+		cell := getCellInfo(term, 1, 0)
+		want := cellInfo{Chars: "世\u0301", Width: 2, Combined: true}
+		if diff := cmp.Diff(want, cell); diff != "" {
+			t.Errorf("row 1 col 0 (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("oldWidth_combining_joins_in_place", func(t *testing.T) {
+		// When cursor is at cols (past end) and a combining mark joins the
+		// preceding width-1 char, no wrap should occur (chWidth - oldWidth = 0).
+		t.Parallel()
+		term := newTestTerminal(5, 5)
+		defer term.Dispose()
+		term.WriteString("1234A")
+		if term.CursorX() != 5 {
+			t.Fatalf("setup: cursorX = %d, want 5", term.CursorX())
+		}
+		term.WriteString("\u0301")
+		cell := getCellInfo(term, 0, 4)
+		want := cellInfo{Chars: "A\u0301", Width: 1, Combined: true}
+		if diff := cmp.Diff(want, cell); diff != "" {
+			t.Errorf("cell at (0,4) (-want +got):\n%s", diff)
+		}
+		if term.CursorX() != 5 {
+			t.Errorf("cursorX = %d, want 5", term.CursorX())
+		}
+		if term.CursorY() != 0 {
+			t.Errorf("cursorY = %d, want 0", term.CursorY())
+		}
+	})
+
+	t.Run("wrap_sets_bufX_to_oldWidth", func(t *testing.T) {
+		// Verify that after a normal (non-combining) wrap, buf.X is set
+		// correctly. The fix changes buf.X = 0 to buf.X = oldWidth; for
+		// non-combining chars oldWidth is 0, so behavior is identical.
+		t.Parallel()
+		term := newTestTerminal(5, 5)
+		defer term.Dispose()
+		term.WriteString("12345X")
+		line0 := term.GetLine(0)
+		if line0 != "12345" {
+			t.Errorf("row 0 = %q, want %q", line0, "12345")
+		}
+		cell := getCellInfo(term, 1, 0)
+		want := cellInfo{Chars: "X", Width: 1, Combined: false}
+		if diff := cmp.Diff(want, cell); diff != "" {
+			t.Errorf("row 1 col 0 (-want +got):\n%s", diff)
+		}
+		if term.CursorX() != 1 {
+			t.Errorf("cursorX = %d, want 1", term.CursorX())
+		}
+		if term.CursorY() != 1 {
+			t.Errorf("cursorY = %d, want 1", term.CursorY())
+		}
+		// Verify the second line is marked as wrapped.
+		buf := term.bufferService.Buffer()
+		wrappedLine := buf.Lines.Get(buf.YBase + 1)
+		if wrappedLine == nil {
+			t.Fatal("row 1 line is nil")
+		}
+		if !wrappedLine.IsWrapped {
+			t.Error("row 1 should be marked as wrapped")
+		}
+	})
+}
+
+
