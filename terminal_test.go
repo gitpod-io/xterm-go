@@ -773,6 +773,106 @@ func TestTerminalRegisterCsiHandler(t *testing.T) {
 	}
 }
 
+func TestTerminalRegisterCsiHandlerWindowOptionGate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("blocked when window option not permitted", func(t *testing.T) {
+		t.Parallel()
+		// Default WindowOptions has all fields false — handler should be blocked.
+		term := New(WithCols(80), WithRows(24))
+
+		var called bool
+		term.RegisterCsiHandler(FunctionIdentifier{Final: 't'}, func(params *Params) bool {
+			called = true
+			return true
+		})
+
+		// Send CSI 18 t (getWinSizeChars)
+		term.WriteString("\x1b[18t")
+		if called {
+			t.Fatal("CSI t handler was called despite window option not being permitted")
+		}
+	})
+
+	t.Run("allowed when window option is permitted", func(t *testing.T) {
+		t.Parallel()
+		term := New(WithCols(80), WithRows(24), WithWindowOptions(WindowOptions{
+			GetWinSizeChars: true,
+		}))
+
+		var called bool
+		var gotParam int32
+		term.RegisterCsiHandler(FunctionIdentifier{Final: 't'}, func(params *Params) bool {
+			called = true
+			if params.Length > 0 {
+				gotParam = params.Params[0]
+			}
+			return true
+		})
+
+		// Send CSI 18 t (getWinSizeChars — permitted)
+		term.WriteString("\x1b[18t")
+		if !called {
+			t.Fatal("CSI t handler was not called despite window option being permitted")
+		}
+		if gotParam != 18 {
+			t.Fatalf("got param %d, want 18", gotParam)
+		}
+	})
+
+	t.Run("only matching sub-command is allowed", func(t *testing.T) {
+		t.Parallel()
+		term := New(WithCols(80), WithRows(24), WithWindowOptions(WindowOptions{
+			GetWinSizeChars: true, // permits param 18
+		}))
+
+		var called bool
+		term.RegisterCsiHandler(FunctionIdentifier{Final: 't'}, func(params *Params) bool {
+			called = true
+			return true
+		})
+
+		// Send CSI 14 t (getWinSizePixels — NOT permitted)
+		term.WriteString("\x1b[14t")
+		if called {
+			t.Fatal("CSI t handler was called for a non-permitted sub-command")
+		}
+	})
+
+	t.Run("non-t CSI handler is not gated", func(t *testing.T) {
+		t.Parallel()
+		term := New(WithCols(80), WithRows(24))
+
+		var called bool
+		term.RegisterCsiHandler(FunctionIdentifier{Final: 'Z'}, func(params *Params) bool {
+			called = true
+			return true
+		})
+
+		term.WriteString("\x1b[18Z")
+		if !called {
+			t.Fatal("non-t CSI handler should not be gated by window options")
+		}
+	})
+
+	t.Run("CSI t with prefix is not gated", func(t *testing.T) {
+		t.Parallel()
+		term := New(WithCols(80), WithRows(24))
+
+		var called bool
+		term.RegisterCsiHandler(FunctionIdentifier{Prefix: '>', Final: 't'}, func(params *Params) bool {
+			called = true
+			return true
+		})
+
+		// Send CSI > 18 t
+		term.WriteString("\x1b[>18t")
+		if !called {
+			t.Fatal("CSI > t handler should not be gated by window options")
+		}
+	})
+}
+
 func TestTerminalRegisterEscHandler(t *testing.T) {
 	t.Parallel()
 	term := newTestTerminal(80, 24)

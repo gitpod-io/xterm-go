@@ -317,3 +317,53 @@ func TestOptionsServiceSetOptionConvertEol(t *testing.T) {
 		t.Errorf("(-want +got):\n%s", diff)
 	}
 }
+
+func TestParamToWindowOption(t *testing.T) {
+	t.Parallel()
+
+	type TestCase struct {
+		Name    string
+		Param   int32
+		Opts    WindowOptions
+		Allowed bool
+	}
+	tests := []TestCase{
+		{"default denies all", 18, WindowOptions{}, false},
+		{"getWinSizeChars allowed", 18, WindowOptions{GetWinSizeChars: true}, true},
+		{"restoreWin allowed", 1, WindowOptions{RestoreWin: true}, true},
+		{"minimizeWin allowed", 2, WindowOptions{MinimizeWin: true}, true},
+		{"setWinPosition allowed", 3, WindowOptions{SetWinPosition: true}, true},
+		{"setWinSizePixels allowed", 4, WindowOptions{SetWinSizePixels: true}, true},
+		{"raiseWin allowed", 5, WindowOptions{RaiseWin: true}, true},
+		{"lowerWin allowed", 6, WindowOptions{LowerWin: true}, true},
+		{"refreshWin allowed", 7, WindowOptions{RefreshWin: true}, true},
+		{"setWinSizeChars allowed", 8, WindowOptions{SetWinSizeChars: true}, true},
+		{"maximizeWin allowed", 9, WindowOptions{MaximizeWin: true}, true},
+		{"fullscreenWin allowed", 10, WindowOptions{FullscreenWin: true}, true},
+		{"getWinState allowed", 11, WindowOptions{GetWinState: true}, true},
+		{"getWinPosition allowed", 13, WindowOptions{GetWinPosition: true}, true},
+		{"getWinSizePixels allowed", 14, WindowOptions{GetWinSizePixels: true}, true},
+		{"getScreenSizePixels allowed", 15, WindowOptions{GetScreenSizePixels: true}, true},
+		{"getCellSizePixels allowed", 16, WindowOptions{GetCellSizePixels: true}, true},
+		{"getScreenSizeChars allowed", 19, WindowOptions{GetScreenSizeChars: true}, true},
+		{"getIconTitle allowed", 20, WindowOptions{GetIconTitle: true}, true},
+		{"getWinTitle allowed", 21, WindowOptions{GetWinTitle: true}, true},
+		{"pushTitle allowed", 22, WindowOptions{PushTitle: true}, true},
+		{"popTitle allowed", 23, WindowOptions{PopTitle: true}, true},
+		{"setWinLines allowed", 24, WindowOptions{SetWinLines: true}, true},
+		{"param > 24 uses setWinLines", 25, WindowOptions{SetWinLines: true}, true},
+		{"param > 24 denied without setWinLines", 30, WindowOptions{}, false},
+		{"unmapped param 12 denied", 12, WindowOptions{}, false},
+		{"wrong option for param", 14, WindowOptions{GetCellSizePixels: true}, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			got := paramToWindowOption(tc.Param, tc.Opts)
+			if got != tc.Allowed {
+				t.Errorf("paramToWindowOption(%d, ...) = %v, want %v", tc.Param, got, tc.Allowed)
+			}
+		})
+	}
+}
+

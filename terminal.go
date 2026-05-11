@@ -28,6 +28,11 @@ func WithScreenReaderMode(on bool) Option {
 	return func(o *TerminalOptions) { o.ScreenReaderMode = on }
 }
 
+// WithWindowOptions configures which CSI t sub-commands are permitted.
+func WithWindowOptions(wo WindowOptions) Option {
+	return func(o *TerminalOptions) { o.WindowOptions = wo }
+}
+
 // WithVtExtensions configures non-standard VT extensions.
 func WithVtExtensions(ext VtExtensions) Option {
 	return func(o *TerminalOptions) { o.VtExtensions = ext }
@@ -309,7 +314,17 @@ func (t *Terminal) RegisterApcHandler(id FunctionIdentifier, handler func(data s
 
 // RegisterCsiHandler registers a custom handler for a CSI escape sequence.
 // The handler returns true to stop the handler chain from bubbling further.
+// For CSI t (window options), the handler is wrapped with a permission check
+// against the terminal's WindowOptions configuration.
 func (t *Terminal) RegisterCsiHandler(id FunctionIdentifier, handler CsiHandler) Disposable {
+	if id.Final == 't' && id.Prefix == 0 && id.Intermediates == "" {
+		return t.inputHandler.parser.RegisterCsiHandler(id, func(params *Params) bool {
+			if !paramToWindowOption(params.Params[0], t.optionsService.Options.WindowOptions) {
+				return true
+			}
+			return handler(params)
+		})
+	}
 	return t.inputHandler.parser.RegisterCsiHandler(id, handler)
 }
 

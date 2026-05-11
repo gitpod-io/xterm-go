@@ -37,6 +37,89 @@ type WindowsPty struct {
 	BuildNo int    `json:"buildNumber,omitempty"`
 }
 
+// WindowOptions controls which CSI t (window manipulation) sub-commands are
+// permitted. All fields default to false (denied). Mirrors upstream xterm.js
+// IWindowOptions interface.
+type WindowOptions struct {
+	RestoreWin        bool `json:"restoreWin,omitempty"`
+	MinimizeWin       bool `json:"minimizeWin,omitempty"`
+	SetWinPosition    bool `json:"setWinPosition,omitempty"`
+	SetWinSizePixels  bool `json:"setWinSizePixels,omitempty"`
+	RaiseWin          bool `json:"raiseWin,omitempty"`
+	LowerWin          bool `json:"lowerWin,omitempty"`
+	RefreshWin        bool `json:"refreshWin,omitempty"`
+	SetWinSizeChars   bool `json:"setWinSizeChars,omitempty"`
+	MaximizeWin       bool `json:"maximizeWin,omitempty"`
+	FullscreenWin     bool `json:"fullscreenWin,omitempty"`
+	GetWinState       bool `json:"getWinState,omitempty"`
+	GetWinPosition    bool `json:"getWinPosition,omitempty"`
+	GetWinSizePixels  bool `json:"getWinSizePixels,omitempty"`
+	GetScreenSizePixels bool `json:"getScreenSizePixels,omitempty"`
+	GetCellSizePixels bool `json:"getCellSizePixels,omitempty"`
+	GetWinSizeChars   bool `json:"getWinSizeChars,omitempty"`
+	GetScreenSizeChars bool `json:"getScreenSizeChars,omitempty"`
+	GetIconTitle      bool `json:"getIconTitle,omitempty"`
+	GetWinTitle       bool `json:"getWinTitle,omitempty"`
+	PushTitle         bool `json:"pushTitle,omitempty"`
+	PopTitle          bool `json:"popTitle,omitempty"`
+	SetWinLines       bool `json:"setWinLines,omitempty"`
+}
+
+// paramToWindowOption checks whether the given CSI t sub-command parameter is
+// allowed by the WindowOptions configuration.
+func paramToWindowOption(n int32, opts WindowOptions) bool {
+	if n > 24 {
+		return opts.SetWinLines
+	}
+	switch n {
+	case 1:
+		return opts.RestoreWin
+	case 2:
+		return opts.MinimizeWin
+	case 3:
+		return opts.SetWinPosition
+	case 4:
+		return opts.SetWinSizePixels
+	case 5:
+		return opts.RaiseWin
+	case 6:
+		return opts.LowerWin
+	case 7:
+		return opts.RefreshWin
+	case 8:
+		return opts.SetWinSizeChars
+	case 9:
+		return opts.MaximizeWin
+	case 10:
+		return opts.FullscreenWin
+	case 11:
+		return opts.GetWinState
+	case 13:
+		return opts.GetWinPosition
+	case 14:
+		return opts.GetWinSizePixels
+	case 15:
+		return opts.GetScreenSizePixels
+	case 16:
+		return opts.GetCellSizePixels
+	case 18:
+		return opts.GetWinSizeChars
+	case 19:
+		return opts.GetScreenSizeChars
+	case 20:
+		return opts.GetIconTitle
+	case 21:
+		return opts.GetWinTitle
+	case 22:
+		return opts.PushTitle
+	case 23:
+		return opts.PopTitle
+	case 24:
+		return opts.SetWinLines
+	}
+	return false
+}
+
 // VtExtensions gates non-standard terminal extensions.
 // Mirrors upstream xterm.js vtExtensions option.
 // Pointer fields default to true when nil.
@@ -104,6 +187,7 @@ type TerminalOptions struct {
 	ConvertEol                    bool                `json:"convertEol"`
 	TermName                      string              `json:"termName"`
 	WindowsPty                    WindowsPty          `json:"windowsPty"`
+	WindowOptions                 WindowOptions       `json:"windowOptions"`
 	VtExtensions                  VtExtensions        `json:"vtExtensions"`
 }
 
@@ -227,6 +311,7 @@ func (s *OptionsService) applyOverrides(opts *TerminalOptions) {
 	s.Options.MacOptionIsMeta = opts.MacOptionIsMeta
 	s.Options.AltClickMovesCursor = opts.AltClickMovesCursor
 	s.Options.WindowsPty = opts.WindowsPty
+	s.Options.WindowOptions = opts.WindowOptions
 	s.Options.VtExtensions = opts.VtExtensions
 }
 
