@@ -658,6 +658,7 @@ func (h *InputHandler) setModePrivate(params *Params) bool {
 			h.coreService.DecPrivateModes.MouseTrackingMode = "ANY"
 		case 1004:
 			h.coreService.DecPrivateModes.SendFocus = true
+			h.OnRequestSendFocusEmitter.Fire(struct{}{})
 		case 1006:
 			h.coreService.DecPrivateModes.MouseEncoding = "SGR"
 		case 1016:

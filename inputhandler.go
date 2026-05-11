@@ -99,6 +99,7 @@ type InputHandler struct {
 	OnRequestResetEmitter         EventEmitter[struct{}]
 	OnRequestRefreshRowsEmitter   EventEmitter[RowRange]
 	OnColorEmitter                          EventEmitter[[]ColorEvent]
+	OnRequestSendFocusEmitter               EventEmitter[struct{}]
 	OnRequestSyncScrollBarEmitter           EventEmitter[struct{}]
 	OnRequestColorSchemeQueryEmitter        EventEmitter[struct{}]
 	OnRequestWindowsOptionsReportEmitter    EventEmitter[WindowsOptionsReportType]
@@ -563,6 +564,7 @@ func (h *InputHandler) Dispose() {
 	h.OnRequestResetEmitter.Dispose()
 	h.OnRequestRefreshRowsEmitter.Dispose()
 	h.OnColorEmitter.Dispose()
+	h.OnRequestSendFocusEmitter.Dispose()
 	h.OnRequestSyncScrollBarEmitter.Dispose()
 	h.OnRequestColorSchemeQueryEmitter.Dispose()
 	h.OnRequestWindowsOptionsReportEmitter.Dispose()

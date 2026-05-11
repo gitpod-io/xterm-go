@@ -59,6 +59,7 @@ type Terminal struct {
 	OnScrollEmitter                  EventEmitter[int]
 	OnRenderEmitter                  EventEmitter[RowRange]
 	OnWriteParsedEmitter             EventEmitter[struct{}]
+	OnRequestSendFocusEmitter               EventEmitter[struct{}]
 	OnRequestColorSchemeQueryEmitter        EventEmitter[struct{}]
 	OnRequestWindowsOptionsReportEmitter    EventEmitter[WindowsOptionsReportType]
 }
@@ -97,6 +98,7 @@ func New(opts ...Option) *Terminal {
 	ih.OnLineFeedEmitter.Event(func(struct{}) { t.OnLineFeedEmitter.Fire(struct{}{}) })
 	ih.OnCursorMoveEmitter.Event(func(struct{}) { t.OnCursorMoveEmitter.Fire(struct{}{}) })
 	ih.OnRequestRefreshRowsEmitter.Event(func(r RowRange) { t.OnRenderEmitter.Fire(r) })
+	ih.OnRequestSendFocusEmitter.Event(func(struct{}) { t.OnRequestSendFocusEmitter.Fire(struct{}{}) })
 	ih.OnRequestColorSchemeQueryEmitter.Event(func(struct{}) { t.OnRequestColorSchemeQueryEmitter.Fire(struct{}{}) })
 	ih.OnRequestWindowsOptionsReportEmitter.Event(func(rt WindowsOptionsReportType) { t.OnRequestWindowsOptionsReportEmitter.Fire(rt) })
 
@@ -280,6 +282,13 @@ func (t *Terminal) OnRender(fn func(RowRange)) Disposable {
 	return t.OnRenderEmitter.Event(fn)
 }
 
+// OnRequestSendFocus subscribes to focus-reporting enable events (DECSET 1004).
+// Fired when the application enables focus tracking so the host can immediately
+// report the current focus state.
+func (t *Terminal) OnRequestSendFocus(fn func()) Disposable {
+	return t.OnRequestSendFocusEmitter.Event(func(struct{}) { fn() })
+}
+
 // OnRequestColorSchemeQuery subscribes to DSR 996 color scheme query events.
 // Fired when the client sends CSI ? 996 n while color scheme updates (DECSET 2031) are enabled.
 func (t *Terminal) OnRequestColorSchemeQuery(fn func()) Disposable {
@@ -447,6 +456,7 @@ func (t *Terminal) Dispose() {
 	t.OnScrollEmitter.Dispose()
 	t.OnRenderEmitter.Dispose()
 	t.OnWriteParsedEmitter.Dispose()
+	t.OnRequestSendFocusEmitter.Dispose()
 	t.OnRequestColorSchemeQueryEmitter.Dispose()
 	t.OnRequestWindowsOptionsReportEmitter.Dispose()
 }

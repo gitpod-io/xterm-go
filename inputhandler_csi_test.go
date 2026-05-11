@@ -1856,6 +1856,83 @@ func TestWindowOptionsReportTerminalLevel(t *testing.T) {
 	})
 }
 
+// --- OnRequestSendFocus (DECSET 1004) tests ---
+
+func TestOnRequestSendFocus(t *testing.T) {
+	t.Parallel()
+
+	t.Run("fires_when_focus_reporting_enabled", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		fired := 0
+		h.OnRequestSendFocusEmitter.Event(func(struct{}) {
+			fired++
+		})
+
+		// Enable focus reporting (DECSET 1004).
+		h.ParseString("\x1b[?1004h")
+
+		if fired != 1 {
+			t.Errorf("expected OnRequestSendFocus to fire once, got %d", fired)
+		}
+	})
+
+	t.Run("does_not_fire_when_focus_reporting_disabled", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		fired := 0
+		h.OnRequestSendFocusEmitter.Event(func(struct{}) {
+			fired++
+		})
+
+		// Disable focus reporting (DECRST 1004) without enabling first.
+		h.ParseString("\x1b[?1004l")
+
+		if fired != 0 {
+			t.Errorf("expected OnRequestSendFocus not to fire, got %d", fired)
+		}
+	})
+
+	t.Run("fires_each_time_focus_reporting_enabled", func(t *testing.T) {
+		t.Parallel()
+		h := newTestInputHandler(80, 24)
+		fired := 0
+		h.OnRequestSendFocusEmitter.Event(func(struct{}) {
+			fired++
+		})
+
+		// Enable, disable, enable again.
+		h.ParseString("\x1b[?1004h")
+		h.ParseString("\x1b[?1004l")
+		h.ParseString("\x1b[?1004h")
+
+		if fired != 2 {
+			t.Errorf("expected OnRequestSendFocus to fire twice, got %d", fired)
+		}
+	})
+}
+
+func TestOnRequestSendFocusTerminalLevel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DECSET_1004_forwarded_to_terminal", func(t *testing.T) {
+		t.Parallel()
+		term := newTestTerminal(80, 24)
+		defer term.Dispose()
+
+		fired := false
+		d := term.OnRequestSendFocus(func() {
+			fired = true
+		})
+		defer d.Dispose()
+
+		term.WriteString("\x1b[?1004h")
+		if !fired {
+			t.Fatal("Terminal.OnRequestSendFocus not fired for DECSET 1004")
+		}
+	})
+}
+
 // --- VtExtensions gating tests ---
 
 func TestVtExtensions_Win32InputModeGating(t *testing.T) {
