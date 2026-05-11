@@ -467,12 +467,14 @@ func (h *InputHandler) sendDeviceAttributesSecondary(params *Params) bool {
 	}
 	tn := h.optionsService.Options.TermName
 	switch {
-	case strings.HasPrefix(tn, "xterm"), strings.HasPrefix(tn, "screen"):
+	case strings.HasPrefix(tn, "xterm"):
 		h.coreService.TriggerDataEvent("\x1b[>0;276;0c", false, false)
 	case strings.HasPrefix(tn, "rxvt-unicode"):
 		h.coreService.TriggerDataEvent("\x1b[>85;95;0c", false, false)
 	case strings.HasPrefix(tn, "linux"):
-		// linux console does not respond to DA2
+		h.coreService.TriggerDataEvent(fmt.Sprintf("%dc", params.Params[0]), false, false)
+	case strings.HasPrefix(tn, "screen"):
+		h.coreService.TriggerDataEvent("\x1b[>83;40003;0c", false, false)
 	}
 	return true
 }

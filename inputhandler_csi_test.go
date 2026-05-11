@@ -649,9 +649,9 @@ func TestDeviceAttributes(t *testing.T) {
 		}{
 			{"xterm_default", "xterm", "\x1b[>c", "\x1b[>0;276;0c"},
 			{"xterm-256color", "xterm-256color", "\x1b[>c", "\x1b[>0;276;0c"},
-			{"screen", "screen", "\x1b[>c", "\x1b[>0;276;0c"},
+			{"screen", "screen", "\x1b[>c", "\x1b[>83;40003;0c"},
 			{"rxvt-unicode", "rxvt-unicode", "\x1b[>c", "\x1b[>85;95;0c"},
-			{"linux_no_response", "linux", "\x1b[>c", ""},
+			{"linux", "linux", "\x1b[>c", "0c"},
 			{"non_zero_param_no_response", "xterm", "\x1b[>1c", ""},
 		}
 		for _, tc := range tests {
