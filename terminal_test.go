@@ -1187,6 +1187,33 @@ func TestTerminalClearFiresScrollEvent(t *testing.T) {
 	}
 }
 
+func TestTerminalClearDisposesMarkers(t *testing.T) {
+	t.Parallel()
+
+	term := New(WithCols(80), WithRows(24), WithScrollback(100))
+	for i := 0; i < 30; i++ {
+		term.WriteString("line\r\n")
+	}
+	m := term.AddMarker(0)
+	if m == nil {
+		t.Fatal("AddMarker returned nil")
+	}
+
+	buf := term.Buffer()
+	if len(buf.Markers) != 1 {
+		t.Fatalf("markers before Clear = %d, want 1", len(buf.Markers))
+	}
+
+	term.Clear()
+
+	if !m.IsDisposed {
+		t.Error("marker should be disposed after Clear()")
+	}
+	if len(buf.Markers) != 0 {
+		t.Errorf("markers after Clear = %d, want 0", len(buf.Markers))
+	}
+}
+
 func TestTerminalAddMarker(t *testing.T) {
 	t.Parallel()
 
