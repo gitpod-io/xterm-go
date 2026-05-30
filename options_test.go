@@ -318,6 +318,24 @@ func TestOptionsServiceSetOptionConvertEol(t *testing.T) {
 	}
 }
 
+func TestDefaultOptionsMouseEventsRequireAlt(t *testing.T) {
+	t.Parallel()
+
+	opts := DefaultOptions()
+	if opts.MouseEventsRequireAlt != false {
+		t.Errorf("MouseEventsRequireAlt default = %v, want false", opts.MouseEventsRequireAlt)
+	}
+}
+
+func TestNewOptionsServiceMouseEventsRequireAltOverride(t *testing.T) {
+	t.Parallel()
+
+	s := NewOptionsService(&TerminalOptions{MouseEventsRequireAlt: true})
+	if !s.Options.MouseEventsRequireAlt {
+		t.Errorf("MouseEventsRequireAlt = %v, want true after override", s.Options.MouseEventsRequireAlt)
+	}
+}
+
 func TestParamToWindowOption(t *testing.T) {
 	t.Parallel()
 

@@ -184,6 +184,7 @@ type TerminalOptions struct {
 	RightClickSelectsWord         bool                `json:"rightClickSelectsWord"`
 	WordSeparator                 string              `json:"wordSeparator"`
 	AltClickMovesCursor           bool                `json:"altClickMovesCursor"`
+	MouseEventsRequireAlt         bool                `json:"mouseEventsRequireAlt"`
 	ConvertEol                    bool                `json:"convertEol"`
 	TermName                      string              `json:"termName"`
 	WindowsPty                    WindowsPty          `json:"windowsPty"`
@@ -216,6 +217,7 @@ func DefaultOptions() TerminalOptions {
 		TabStopWidth:               8,
 		WordSeparator:              " ()[]{}',\"`\\",
 		AltClickMovesCursor:        true,
+		MouseEventsRequireAlt:      false,
 		TermName:                   "xterm",
 	}
 }
@@ -310,6 +312,7 @@ func (s *OptionsService) applyOverrides(opts *TerminalOptions) {
 	s.Options.ScreenReaderMode = opts.ScreenReaderMode
 	s.Options.MacOptionIsMeta = opts.MacOptionIsMeta
 	s.Options.AltClickMovesCursor = opts.AltClickMovesCursor
+	s.Options.MouseEventsRequireAlt = opts.MouseEventsRequireAlt
 	s.Options.WindowsPty = opts.WindowsPty
 	s.Options.WindowOptions = opts.WindowOptions
 	s.Options.VtExtensions = opts.VtExtensions
