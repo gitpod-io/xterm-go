@@ -50,18 +50,18 @@ type Terminal struct {
 	inputHandler      *InputHandler
 
 	// Public event emitters (forwarded from sub-components).
-	OnBellEmitter                    EventEmitter[struct{}]
-	OnTitleChangeEmitter             EventEmitter[string]
-	OnIconNameChangeEmitter          EventEmitter[string]
-	OnLineFeedEmitter                EventEmitter[struct{}]
-	OnCursorMoveEmitter              EventEmitter[struct{}]
-	OnResizeEmitter                  EventEmitter[BufferResizeEvent]
-	OnScrollEmitter                  EventEmitter[int]
-	OnRenderEmitter                  EventEmitter[RowRange]
-	OnWriteParsedEmitter             EventEmitter[struct{}]
-	OnRequestSendFocusEmitter               EventEmitter[struct{}]
-	OnRequestColorSchemeQueryEmitter        EventEmitter[struct{}]
-	OnRequestWindowsOptionsReportEmitter    EventEmitter[WindowsOptionsReportType]
+	OnBellEmitter                        EventEmitter[struct{}]
+	OnTitleChangeEmitter                 EventEmitter[string]
+	OnIconNameChangeEmitter              EventEmitter[string]
+	OnLineFeedEmitter                    EventEmitter[struct{}]
+	OnCursorMoveEmitter                  EventEmitter[struct{}]
+	OnResizeEmitter                      EventEmitter[BufferResizeEvent]
+	OnScrollEmitter                      EventEmitter[int]
+	OnRenderEmitter                      EventEmitter[RowRange]
+	OnWriteParsedEmitter                 EventEmitter[struct{}]
+	OnRequestSendFocusEmitter            EventEmitter[struct{}]
+	OnRequestColorSchemeQueryEmitter     EventEmitter[struct{}]
+	OnRequestWindowsOptionsReportEmitter EventEmitter[WindowsOptionsReportType]
 }
 
 // New creates a new Terminal with the given options.
@@ -435,10 +435,15 @@ func (t *Terminal) Clear() {
 	t.OnScrollEmitter.Fire(buf.YDisp)
 }
 
-// AddMarker creates a marker at the cursor position plus the given offset.
-func (t *Terminal) AddMarker(cursorYOffset int) *Marker {
+// RegisterMarker creates a marker at the cursor position plus the given offset.
+func (t *Terminal) RegisterMarker(cursorYOffset int) *Marker {
 	buf := t.bufferService.Buffer()
 	return buf.AddMarker(buf.YBase + buf.Y + cursorYOffset)
+}
+
+// AddMarker creates a marker at the cursor position plus the given offset.
+func (t *Terminal) AddMarker(cursorYOffset int) *Marker {
+	return t.RegisterMarker(cursorYOffset)
 }
 
 // Scrollback returns the scrollback buffer size.

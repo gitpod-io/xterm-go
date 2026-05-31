@@ -1088,9 +1088,9 @@ func TestTerminalClear(t *testing.T) {
 	t.Parallel()
 
 	type Expectation struct {
-		Y               int
-		YBase           int
-		YDisp           int
+		Y     int
+		YBase int
+		YDisp int
 	}
 
 	term := newTestTerminal(80, 5)
@@ -1102,14 +1102,14 @@ func TestTerminalClear(t *testing.T) {
 	term.Clear()
 
 	got := Expectation{
-		Y:               term.Buffer().Y,
-		YBase:           term.Buffer().YBase,
-		YDisp:           term.Buffer().YDisp,
+		Y:     term.Buffer().Y,
+		YBase: term.Buffer().YBase,
+		YDisp: term.Buffer().YDisp,
 	}
 	expected := Expectation{
-		Y:               0,
-		YBase:           0,
-		YDisp:           0,
+		Y:     0,
+		YBase: 0,
+		YDisp: 0,
 	}
 	if diff := cmp.Diff(expected, got); diff != "" {
 		t.Errorf("(-want +got):\n%s", diff)
@@ -1227,6 +1227,40 @@ func TestTerminalAddMarker(t *testing.T) {
 	}
 
 	expectedLine := term.Buffer().YBase + term.CursorY()
+	if marker.Line != expectedLine {
+		t.Errorf("marker.Line = %d, want %d", marker.Line, expectedLine)
+	}
+}
+
+func TestTerminalRegisterMarker(t *testing.T) {
+	t.Parallel()
+
+	term := newTestTerminal(80, 24)
+	term.WriteString("hello\r\nworld\r\n")
+
+	marker := term.RegisterMarker(0)
+	if marker == nil {
+		t.Fatal("RegisterMarker returned nil")
+	}
+
+	expectedLine := term.Buffer().YBase + term.CursorY()
+	if marker.Line != expectedLine {
+		t.Errorf("marker.Line = %d, want %d", marker.Line, expectedLine)
+	}
+}
+
+func TestTerminalAddMarkerDelegatesToRegisterMarker(t *testing.T) {
+	t.Parallel()
+
+	term := newTestTerminal(80, 24)
+	term.WriteString("line1\r\nline2\r\nline3\r\n")
+
+	marker := term.AddMarker(-1)
+	if marker == nil {
+		t.Fatal("AddMarker returned nil")
+	}
+
+	expectedLine := term.Buffer().YBase + term.CursorY() - 1
 	if marker.Line != expectedLine {
 		t.Errorf("marker.Line = %d, want %d", marker.Line, expectedLine)
 	}
