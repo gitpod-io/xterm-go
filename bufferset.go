@@ -18,17 +18,23 @@ type BufferSet struct {
 	rows         int
 	scrollback   int
 	tabStopWidth int
+	windowsPty   bool
 
 	OnBufferActivateEmitter EventEmitter[BufferActivateEvent]
 }
 
 // NewBufferSet creates a BufferSet with normal and alt buffers.
 func NewBufferSet(cols, rows, scrollback, tabStopWidth int) *BufferSet {
+	return newBufferSet(cols, rows, scrollback, tabStopWidth, false)
+}
+
+func newBufferSet(cols, rows, scrollback, tabStopWidth int, windowsPty bool) *BufferSet {
 	bs := &BufferSet{
 		cols:         cols,
 		rows:         rows,
 		scrollback:   scrollback,
 		tabStopWidth: tabStopWidth,
+		windowsPty:   windowsPty,
 	}
 	bs.Reset()
 	return bs
@@ -44,21 +50,23 @@ func (bs *BufferSet) Reset() {
 		bs.alt.Dispose()
 	}
 	bs.normal = NewBuffer(BufferOptions{
-		Cols:          bs.cols,
-		Rows:          bs.rows,
-		Scrollback:    bs.scrollback,
-		TabStopWidth:  bs.tabStopWidth,
-		HasScrollback: true,
+		Cols:           bs.cols,
+		Rows:           bs.rows,
+		Scrollback:     bs.scrollback,
+		TabStopWidth:   bs.tabStopWidth,
+		HasScrollback:  true,
+		WindowsPtyMode: bs.windowsPty,
 	})
 	bs.normal.FillViewportRows(nil)
 
 	// Alt buffer never has scrollback.
 	bs.alt = NewBuffer(BufferOptions{
-		Cols:          bs.cols,
-		Rows:          bs.rows,
-		Scrollback:    0,
-		TabStopWidth:  bs.tabStopWidth,
-		HasScrollback: false,
+		Cols:           bs.cols,
+		Rows:           bs.rows,
+		Scrollback:     0,
+		TabStopWidth:   bs.tabStopWidth,
+		HasScrollback:  false,
+		WindowsPtyMode: bs.windowsPty,
 	})
 
 	bs.active = bs.normal
@@ -118,6 +126,12 @@ func (bs *BufferSet) Resize(newCols, newRows int) {
 	bs.normal.Resize(newCols, newRows)
 	bs.alt.Resize(newCols, newRows)
 	bs.SetupTabStops(newCols)
+}
+
+func (bs *BufferSet) SetWindowsPtyMode(windowsPty bool) {
+	bs.windowsPty = windowsPty
+	bs.normal.setWindowsPtyMode(windowsPty)
+	bs.alt.setWindowsPtyMode(windowsPty)
 }
 
 // SetupTabStops sets up tab stops on both buffers.

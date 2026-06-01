@@ -67,6 +67,45 @@ func TestBufferServiceMinimumDimensions(t *testing.T) {
 	}
 }
 
+func TestBufferServiceWindowsPtyModeFromOptions(t *testing.T) {
+	t.Parallel()
+
+	opts := NewOptionsService(&TerminalOptions{
+		WindowsPty: WindowsPty{Backend: "conpty", BuildNo: 21375},
+	})
+	bs := NewBufferService(opts)
+
+	got := struct {
+		Normal bool
+		Alt    bool
+	}{
+		Normal: bs.Buffers.Normal().windowsPty,
+		Alt:    bs.Buffers.Alt().windowsPty,
+	}
+	expected := struct {
+		Normal bool
+		Alt    bool
+	}{Normal: true, Alt: true}
+	if diff := cmp.Diff(expected, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestBufferServiceWindowsPtyModeOptionChange(t *testing.T) {
+	t.Parallel()
+
+	opts := NewOptionsService(nil)
+	bs := NewBufferService(opts)
+	opts.SetOption("windowsPty", WindowsPty{Backend: "conpty", BuildNo: 21375})
+
+	gotBeforeReset := bs.Buffers.Normal().windowsPty
+	bs.Reset()
+	gotAfterReset := bs.Buffers.Normal().windowsPty
+	if !gotBeforeReset || !gotAfterReset {
+		t.Errorf("windowsPty mode = before reset %v, after reset %v; want both true", gotBeforeReset, gotAfterReset)
+	}
+}
+
 func TestBufferServiceResize(t *testing.T) {
 	t.Parallel()
 

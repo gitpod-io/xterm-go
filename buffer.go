@@ -85,6 +85,10 @@ func NewBuffer(opts BufferOptions) *Buffer {
 	return b
 }
 
+func (b *Buffer) setWindowsPtyMode(windowsPty bool) {
+	b.windowsPty = windowsPty
+}
+
 // GetNullCell returns a null cell, optionally with the given attributes.
 func (b *Buffer) GetNullCell(attr *AttributeData) *CellData {
 	if attr != nil {

@@ -30,6 +30,8 @@ type BufferService struct {
 	OnScrollEmitter EventEmitter[int]
 
 	cachedBlankLine *BufferLine
+
+	windowsPtyOptionDisposable Disposable
 }
 
 // NewBufferService creates a BufferService from the given options.
@@ -47,7 +49,10 @@ func NewBufferService(opts *OptionsService) *BufferService {
 		Cols: cols,
 		Rows: rows,
 	}
-	bs.Buffers = NewBufferSet(cols, rows, opts.Options.Scrollback, opts.Options.TabStopWidth)
+	bs.Buffers = newBufferSet(cols, rows, opts.Options.Scrollback, opts.Options.TabStopWidth, opts.Options.WindowsPty.windowsPtyMode())
+	bs.windowsPtyOptionDisposable = opts.OnSpecificOptionChange("windowsPty", func() {
+		bs.Buffers.SetWindowsPtyMode(opts.Options.WindowsPty.windowsPtyMode())
+	})
 
 	// When the active buffer changes, fire a scroll event with the new ydisp.
 	bs.Buffers.OnBufferActivateEmitter.Event(func(e BufferActivateEvent) {
@@ -161,6 +166,9 @@ func (bs *BufferService) ScrollLines(disp int, suppressScrollEvent bool) {
 
 // Dispose cleans up event emitters.
 func (bs *BufferService) Dispose() {
+	if bs.windowsPtyOptionDisposable != nil {
+		bs.windowsPtyOptionDisposable.Dispose()
+	}
 	bs.OnResizeEmitter.Dispose()
 	bs.OnScrollEmitter.Dispose()
 	bs.Buffers.Dispose()

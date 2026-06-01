@@ -37,32 +37,36 @@ type WindowsPty struct {
 	BuildNo int    `json:"buildNumber,omitempty"`
 }
 
+func (w WindowsPty) windowsPtyMode() bool {
+	return w.Backend == "conpty" && w.BuildNo != 0 && w.BuildNo < 21376
+}
+
 // WindowOptions controls which CSI t (window manipulation) sub-commands are
 // permitted. All fields default to false (denied). Mirrors upstream xterm.js
 // IWindowOptions interface.
 type WindowOptions struct {
-	RestoreWin        bool `json:"restoreWin,omitempty"`
-	MinimizeWin       bool `json:"minimizeWin,omitempty"`
-	SetWinPosition    bool `json:"setWinPosition,omitempty"`
-	SetWinSizePixels  bool `json:"setWinSizePixels,omitempty"`
-	RaiseWin          bool `json:"raiseWin,omitempty"`
-	LowerWin          bool `json:"lowerWin,omitempty"`
-	RefreshWin        bool `json:"refreshWin,omitempty"`
-	SetWinSizeChars   bool `json:"setWinSizeChars,omitempty"`
-	MaximizeWin       bool `json:"maximizeWin,omitempty"`
-	FullscreenWin     bool `json:"fullscreenWin,omitempty"`
-	GetWinState       bool `json:"getWinState,omitempty"`
-	GetWinPosition    bool `json:"getWinPosition,omitempty"`
-	GetWinSizePixels  bool `json:"getWinSizePixels,omitempty"`
+	RestoreWin          bool `json:"restoreWin,omitempty"`
+	MinimizeWin         bool `json:"minimizeWin,omitempty"`
+	SetWinPosition      bool `json:"setWinPosition,omitempty"`
+	SetWinSizePixels    bool `json:"setWinSizePixels,omitempty"`
+	RaiseWin            bool `json:"raiseWin,omitempty"`
+	LowerWin            bool `json:"lowerWin,omitempty"`
+	RefreshWin          bool `json:"refreshWin,omitempty"`
+	SetWinSizeChars     bool `json:"setWinSizeChars,omitempty"`
+	MaximizeWin         bool `json:"maximizeWin,omitempty"`
+	FullscreenWin       bool `json:"fullscreenWin,omitempty"`
+	GetWinState         bool `json:"getWinState,omitempty"`
+	GetWinPosition      bool `json:"getWinPosition,omitempty"`
+	GetWinSizePixels    bool `json:"getWinSizePixels,omitempty"`
 	GetScreenSizePixels bool `json:"getScreenSizePixels,omitempty"`
-	GetCellSizePixels bool `json:"getCellSizePixels,omitempty"`
-	GetWinSizeChars   bool `json:"getWinSizeChars,omitempty"`
-	GetScreenSizeChars bool `json:"getScreenSizeChars,omitempty"`
-	GetIconTitle      bool `json:"getIconTitle,omitempty"`
-	GetWinTitle       bool `json:"getWinTitle,omitempty"`
-	PushTitle         bool `json:"pushTitle,omitempty"`
-	PopTitle          bool `json:"popTitle,omitempty"`
-	SetWinLines       bool `json:"setWinLines,omitempty"`
+	GetCellSizePixels   bool `json:"getCellSizePixels,omitempty"`
+	GetWinSizeChars     bool `json:"getWinSizeChars,omitempty"`
+	GetScreenSizeChars  bool `json:"getScreenSizeChars,omitempty"`
+	GetIconTitle        bool `json:"getIconTitle,omitempty"`
+	GetWinTitle         bool `json:"getWinTitle,omitempty"`
+	PushTitle           bool `json:"pushTitle,omitempty"`
+	PopTitle            bool `json:"popTitle,omitempty"`
+	SetWinLines         bool `json:"setWinLines,omitempty"`
 }
 
 // paramToWindowOption checks whether the given CSI t sub-command parameter is
@@ -125,7 +129,7 @@ func paramToWindowOption(n int32, opts WindowOptions) bool {
 // Pointer fields default to true when nil.
 type VtExtensions struct {
 	KittyKeyboard            bool  `json:"kittyKeyboard"`
-	ColorSchemeQuery         *bool `json:"colorSchemeQuery,omitempty"`         // default true
+	ColorSchemeQuery         *bool `json:"colorSchemeQuery,omitempty"` // default true
 	Win32InputMode           bool  `json:"win32InputMode"`
 	KittySgrBoldFaintControl *bool `json:"kittySgrBoldFaintControl,omitempty"` // default true
 }
@@ -365,6 +369,11 @@ func (s *OptionsService) SetOption(name string, value interface{}) {
 	case "convertEol":
 		if v, ok := value.(bool); ok && v != s.Options.ConvertEol {
 			s.Options.ConvertEol = v
+			changed = true
+		}
+	case "windowsPty":
+		if v, ok := value.(WindowsPty); ok && v != s.Options.WindowsPty {
+			s.Options.WindowsPty = v
 			changed = true
 		}
 	default:

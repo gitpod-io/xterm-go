@@ -38,6 +38,11 @@ func WithVtExtensions(ext VtExtensions) Option {
 	return func(o *TerminalOptions) { o.VtExtensions = ext }
 }
 
+// WithWindowsPty configures Windows pseudo-terminal compatibility behavior.
+func WithWindowsPty(wp WindowsPty) Option {
+	return func(o *TerminalOptions) { o.WindowsPty = wp }
+}
+
 // Terminal is a headless terminal emulator.
 type Terminal struct {
 	optionsService    *OptionsService

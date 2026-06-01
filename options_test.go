@@ -103,6 +103,48 @@ func TestNewOptionsServiceOverrides(t *testing.T) {
 	}
 }
 
+func TestWindowsPtyMode(t *testing.T) {
+	t.Parallel()
+
+	type TestCase struct {
+		Name     string
+		Value    WindowsPty
+		Expected bool
+	}
+	tests := []TestCase{
+		{
+			Name:     "old conpty build",
+			Value:    WindowsPty{Backend: "conpty", BuildNo: 21375},
+			Expected: true,
+		},
+		{
+			Name:     "fixed conpty build",
+			Value:    WindowsPty{Backend: "conpty", BuildNo: 21376},
+			Expected: false,
+		},
+		{
+			Name:     "missing build number",
+			Value:    WindowsPty{Backend: "conpty"},
+			Expected: false,
+		},
+		{
+			Name:     "non-conpty backend",
+			Value:    WindowsPty{Backend: "winpty", BuildNo: 21375},
+			Expected: false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tc.Value.windowsPtyMode()
+			if got != tc.Expected {
+				t.Errorf("windowsPtyMode() = %v, want %v", got, tc.Expected)
+			}
+		})
+	}
+}
+
 func TestOptionsServiceSetOption(t *testing.T) {
 	t.Parallel()
 
@@ -139,6 +181,35 @@ func TestOptionsServiceSetOptionNoChangeNoFire(t *testing.T) {
 
 	got := Expectation{FireCount: count}
 	expected := Expectation{FireCount: 0}
+	if diff := cmp.Diff(expected, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestOptionsServiceSetOptionWindowsPty(t *testing.T) {
+	t.Parallel()
+
+	s := NewOptionsService(nil)
+	var firedName string
+	s.OnOptionChangeEmitter.Event(func(name string) {
+		firedName = name
+	})
+	s.SetOption("windowsPty", WindowsPty{Backend: "conpty", BuildNo: 21375})
+
+	got := struct {
+		WindowsPty WindowsPty
+		FiredEvent string
+	}{
+		WindowsPty: s.Options.WindowsPty,
+		FiredEvent: firedName,
+	}
+	expected := struct {
+		WindowsPty WindowsPty
+		FiredEvent string
+	}{
+		WindowsPty: WindowsPty{Backend: "conpty", BuildNo: 21375},
+		FiredEvent: "windowsPty",
+	}
 	if diff := cmp.Diff(expected, got); diff != "" {
 		t.Errorf("(-want +got):\n%s", diff)
 	}
@@ -384,4 +455,3 @@ func TestParamToWindowOption(t *testing.T) {
 		})
 	}
 }
-

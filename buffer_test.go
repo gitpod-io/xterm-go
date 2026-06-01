@@ -266,6 +266,78 @@ func TestBufferResizeShrinkRows(t *testing.T) {
 	}
 }
 
+func TestBufferResizeGrowRowsWindowsPtyKeepsYBase(t *testing.T) {
+	t.Parallel()
+
+	type TestCase struct {
+		Name            string
+		WindowsPtyMode  bool
+		ExpectedYBase   int
+		ExpectedYDisp   int
+		ExpectedLineLen int
+	}
+	tests := []TestCase{
+		{
+			Name:            "default reclaims scrollback",
+			WindowsPtyMode:  false,
+			ExpectedYBase:   0,
+			ExpectedYDisp:   0,
+			ExpectedLineLen: 4,
+		},
+		{
+			Name:            "windows pty appends blank rows",
+			WindowsPtyMode:  true,
+			ExpectedYBase:   2,
+			ExpectedYDisp:   2,
+			ExpectedLineLen: 6,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			b := NewBuffer(BufferOptions{
+				Cols:           5,
+				Rows:           2,
+				Scrollback:     10,
+				TabStopWidth:   8,
+				HasScrollback:  true,
+				WindowsPtyMode: tc.WindowsPtyMode,
+			})
+			b.FillViewportRows(nil)
+			b.Lines.Push(NewBufferLine(5, b.GetNullCell(nil), false))
+			b.Lines.Push(NewBufferLine(5, b.GetNullCell(nil), false))
+			b.YBase = 2
+			b.YDisp = 2
+			b.Y = 1
+
+			b.Resize(5, 4)
+
+			got := struct {
+				YBase     int
+				YDisp     int
+				LineCount int
+			}{
+				YBase:     b.YBase,
+				YDisp:     b.YDisp,
+				LineCount: b.Lines.Length(),
+			}
+			expected := struct {
+				YBase     int
+				YDisp     int
+				LineCount int
+			}{
+				YBase:     tc.ExpectedYBase,
+				YDisp:     tc.ExpectedYDisp,
+				LineCount: tc.ExpectedLineLen,
+			}
+			if diff := cmp.Diff(expected, got); diff != "" {
+				t.Errorf("(-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestBufferResizeGrowCols(t *testing.T) {
 	t.Parallel()
 	type Expectation struct {
