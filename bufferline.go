@@ -162,9 +162,13 @@ func (bl *BufferLine) LoadCell(index int, cell *CellData) *CellData {
 	cell.Bg = bl.data[si+cellBg]
 	if cell.Content&ContentIsCombinedMask != 0 {
 		cell.CombinedData = bl.combined[index]
+	} else {
+		cell.CombinedData = ""
 	}
 	if cell.Bg&BgFlagHasExtended != 0 {
 		cell.Extended = bl.extendedAttrs[index]
+	} else {
+		cell.Extended = &ExtendedAttrs{}
 	}
 	return cell
 }

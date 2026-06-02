@@ -156,6 +156,33 @@ func TestBufferLineLoadCell(t *testing.T) {
 	}
 }
 
+func TestBufferLineLoadCellClearsSparseFields(t *testing.T) {
+	t.Parallel()
+	bl := NewBufferLine(2, nil, false)
+
+	attrs := DefaultAttrData()
+	attrs.Extended = NewExtendedAttrs(0, 99)
+	attrs.UpdateExtended()
+
+	combined := CellDataFromCharData(NewCharData(0, "a\u0301", 1, 0))
+	combined.AttributeData = attrs
+	bl.SetCell(0, combined)
+
+	plainAttrs := DefaultAttrData()
+	bl.SetCellFromCodepoint(1, 'Z', 1, &plainAttrs)
+
+	cell := NewCellData()
+	bl.LoadCell(0, cell)
+	bl.LoadCell(1, cell)
+
+	if cell.CombinedData != "" {
+		t.Fatalf("LoadCell left stale CombinedData = %q, want empty string", cell.CombinedData)
+	}
+	if cell.Extended == nil || !cell.Extended.IsEmpty() {
+		t.Fatalf("LoadCell left stale Extended attrs, want empty attrs")
+	}
+}
+
 func TestBufferLineInsertCells(t *testing.T) {
 	t.Parallel()
 	type Expectation struct {
