@@ -453,6 +453,21 @@ func TestBufferLineCopyCellsFrom(t *testing.T) {
 	}
 }
 
+func TestBufferLineCopyCellsFromDoesNotCopyCombinedOutsideRange(t *testing.T) {
+	t.Parallel()
+	src := NewBufferLine(5, nil, false)
+	dst := NewBufferLine(5, nil, false)
+
+	src.SetCell(4, CellDataFromCharData(NewCharData(0, "SRC", 1, 0)))
+	dst.SetCell(3, CellDataFromCharData(NewCharData(0, "OLD", 1, 0)))
+
+	dst.CopyCellsFrom(src, 1, 0, 2, false)
+
+	if got := dst.GetString(3); got != "OLD" {
+		t.Fatalf("CopyCellsFrom changed untouched combined cell 3 to %q, want OLD", got)
+	}
+}
+
 func TestBufferLineWideCharTrimmedLength(t *testing.T) {
 	t.Parallel()
 	type Expectation struct {

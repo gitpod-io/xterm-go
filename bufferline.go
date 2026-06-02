@@ -439,25 +439,27 @@ func (bl *BufferLine) CopyCellsFrom(src *BufferLine, srcCol, destCol, length int
 			for i := range cellSize {
 				bl.data[(destCol+cell)*cellSize+i] = srcData[(srcCol+cell)*cellSize+i]
 			}
-			if srcData[(srcCol+cell)*cellSize+cellBg]&BgFlagHasExtended != 0 {
-				bl.extendedAttrs[destCol+cell] = src.extendedAttrs[srcCol+cell]
-			}
+			bl.copyCellMapsFrom(src, srcCol+cell, destCol+cell)
 		}
 	} else {
 		for cell := range length {
 			for i := range cellSize {
 				bl.data[(destCol+cell)*cellSize+i] = srcData[(srcCol+cell)*cellSize+i]
 			}
-			if srcData[(srcCol+cell)*cellSize+cellBg]&BgFlagHasExtended != 0 {
-				bl.extendedAttrs[destCol+cell] = src.extendedAttrs[srcCol+cell]
-			}
+			bl.copyCellMapsFrom(src, srcCol+cell, destCol+cell)
 		}
 	}
-	// Copy combined data
-	for k, v := range src.combined {
-		if k >= srcCol {
-			bl.combined[k-srcCol+destCol] = v
-		}
+}
+
+// copyCellMapsFrom copies the sparse combined and extended attribute entries for a
+// single cell from src[srcCol] to bl[destCol]. It uses the source cell flags to
+// decide whether a sparse entry exists, so only the requested cells are touched.
+func (bl *BufferLine) copyCellMapsFrom(src *BufferLine, srcCol, destCol int) {
+	if srcData := src.data; srcData[srcCol*cellSize+cellContent]&ContentIsCombinedMask != 0 {
+		bl.combined[destCol] = src.combined[srcCol]
+	}
+	if src.data[srcCol*cellSize+cellBg]&BgFlagHasExtended != 0 {
+		bl.extendedAttrs[destCol] = src.extendedAttrs[srcCol]
 	}
 }
 
