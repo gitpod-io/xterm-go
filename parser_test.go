@@ -191,6 +191,94 @@ func TestParseCSIWithPrefix(t *testing.T) {
 	}
 }
 
+func TestParserRejectsInvalidFunctionIdentifierPrefixes(t *testing.T) {
+	t.Parallel()
+	type TestCase struct {
+		Name string
+		Run  func(*EscapeSequenceParser)
+	}
+	tests := []TestCase{
+		{
+			Name: "RegisterCsiHandler",
+			Run: func(p *EscapeSequenceParser) {
+				p.RegisterCsiHandler(FunctionIdentifier{Prefix: '!', Final: 'm'}, func(*Params) bool {
+					return true
+				})
+			},
+		},
+		{
+			Name: "ClearCsiHandler",
+			Run: func(p *EscapeSequenceParser) {
+				p.ClearCsiHandler(FunctionIdentifier{Prefix: '!', Final: 'm'})
+			},
+		},
+		{
+			Name: "RegisterEscHandler",
+			Run: func(p *EscapeSequenceParser) {
+				p.RegisterEscHandler(FunctionIdentifier{Prefix: '!', Final: '7'}, func() bool {
+					return true
+				})
+			},
+		},
+		{
+			Name: "ClearEscHandler",
+			Run: func(p *EscapeSequenceParser) {
+				p.ClearEscHandler(FunctionIdentifier{Prefix: '!', Final: '7'})
+			},
+		},
+		{
+			Name: "RegisterDcsHandler",
+			Run: func(p *EscapeSequenceParser) {
+				p.RegisterDcsHandler(FunctionIdentifier{Prefix: '!', Final: 'q'}, NewDcsStringHandler(func(string, *Params) bool {
+					return true
+				}))
+			},
+		},
+		{
+			Name: "ClearDcsHandler",
+			Run: func(p *EscapeSequenceParser) {
+				p.ClearDcsHandler(FunctionIdentifier{Prefix: '!', Final: 'q'})
+			},
+		},
+		{
+			Name: "RegisterApcHandler",
+			Run: func(p *EscapeSequenceParser) {
+				p.RegisterApcHandler(FunctionIdentifier{Prefix: '!', Final: 'G'}, NewApcStringHandler(func(string) bool {
+					return true
+				}))
+			},
+		},
+		{
+			Name: "ClearApcHandler",
+			Run: func(p *EscapeSequenceParser) {
+				p.ClearApcHandler(FunctionIdentifier{Prefix: '!', Final: 'G'})
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			defer func() {
+				if recover() == nil {
+					t.Fatalf("%s should panic for invalid prefix", tc.Name)
+				}
+			}()
+			tc.Run(NewEscapeSequenceParser())
+		})
+	}
+}
+
+func TestParserAllowsValidFunctionIdentifierPrefixes(t *testing.T) {
+	t.Parallel()
+	p := NewEscapeSequenceParser()
+	for _, prefix := range []byte{'<', '=', '>', '?'} {
+		p.RegisterCsiHandler(FunctionIdentifier{Prefix: prefix, Final: 'm'}, func(*Params) bool {
+			return true
+		}).Dispose()
+	}
+}
+
 // --- Parse: ESC sequences ---
 
 func TestParseESCSequence(t *testing.T) {
@@ -987,4 +1075,3 @@ func TestCSIFastPathHandlerStacking(t *testing.T) {
 		t.Errorf("(-want +got):\n%s", diff)
 	}
 }
-

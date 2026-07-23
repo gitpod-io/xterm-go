@@ -47,9 +47,9 @@ type ParsingState struct {
 	Abort        bool
 }
 
-// FunctionIdentifier identifies a CSI or ESC function by its prefix, intermediates, and final character.
+// FunctionIdentifier identifies a parser function by its prefix, intermediates, and final character.
 type FunctionIdentifier struct {
-	Prefix        byte // 0 for none, or '<', '>', '?', '!'
+	Prefix        byte // 0 for none, or '<', '=', '>', '?'
 	Intermediates string
 	Final         byte
 }
@@ -118,12 +118,19 @@ func NewEscapeSequenceParserWithTable(table *TransitionTable) *EscapeSequencePar
 func (p *EscapeSequenceParser) identifier(id FunctionIdentifier) int {
 	var collect int
 	if id.Prefix != 0 {
+		validateIdentifierPrefix(id.Prefix)
 		collect = int(id.Prefix)
 	}
 	for i := range len(id.Intermediates) {
 		collect = collect<<8 | int(id.Intermediates[i])
 	}
 	return collect<<8 | int(id.Final)
+}
+
+func validateIdentifierPrefix(prefix byte) {
+	if prefix < 0x3c || prefix > 0x3f {
+		panic("prefix must be in range 0x3c .. 0x3f")
+	}
 }
 
 // IdentToString converts a numeric identifier back to a human-readable string.
@@ -266,12 +273,18 @@ func (p *EscapeSequenceParser) SetOscHandlerFallback(handler OscFallbackHandler)
 
 // RegisterApcHandler registers an APC handler.
 func (p *EscapeSequenceParser) RegisterApcHandler(id FunctionIdentifier, handler ApcHandler) Disposable {
+	if id.Prefix != 0 {
+		validateIdentifierPrefix(id.Prefix)
+	}
 	id.Prefix = 0 // APC does not support prefix byte
 	return p.apcParser.RegisterHandler(p.identifier(id), handler)
 }
 
 // ClearApcHandler removes all APC handlers for the identifier.
 func (p *EscapeSequenceParser) ClearApcHandler(id FunctionIdentifier) {
+	if id.Prefix != 0 {
+		validateIdentifierPrefix(id.Prefix)
+	}
 	id.Prefix = 0 // APC does not support prefix byte
 	p.apcParser.ClearHandler(p.identifier(id))
 }
