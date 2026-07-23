@@ -28,6 +28,11 @@ func WithScreenReaderMode(on bool) Option {
 	return func(o *TerminalOptions) { o.ScreenReaderMode = on }
 }
 
+// WithMouseEventsRequireAlt requires Alt for mouse event reporting.
+func WithMouseEventsRequireAlt(on bool) Option {
+	return func(o *TerminalOptions) { o.MouseEventsRequireAlt = on }
+}
+
 // WithWindowOptions configures which CSI t sub-commands are permitted.
 func WithWindowOptions(wo WindowOptions) Option {
 	return func(o *TerminalOptions) { o.WindowOptions = wo }

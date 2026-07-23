@@ -375,6 +375,11 @@ func (s *OptionsService) SetOption(name string, value interface{}) {
 			s.Options.ConvertEol = v
 			changed = true
 		}
+	case "mouseEventsRequireAlt":
+		if v, ok := value.(bool); ok && v != s.Options.MouseEventsRequireAlt {
+			s.Options.MouseEventsRequireAlt = v
+			changed = true
+		}
 	case "windowsPty":
 		if v, ok := value.(WindowsPty); ok && v != s.Options.WindowsPty {
 			s.Options.WindowsPty = v

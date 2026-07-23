@@ -431,6 +431,33 @@ func TestOptionsServiceSetOptionConvertEol(t *testing.T) {
 	}
 }
 
+func TestOptionsServiceSetOptionMouseEventsRequireAlt(t *testing.T) {
+	t.Parallel()
+
+	type Expectation struct {
+		MouseEventsRequireAlt bool
+		SpecificChangeCount   int
+	}
+
+	s := NewOptionsService(nil)
+	changed := 0
+	s.OnSpecificOptionChange("mouseEventsRequireAlt", func() { changed++ })
+	s.SetOption("mouseEventsRequireAlt", true)
+	s.SetOption("mouseEventsRequireAlt", true)
+
+	got := Expectation{
+		MouseEventsRequireAlt: s.Options.MouseEventsRequireAlt,
+		SpecificChangeCount:   changed,
+	}
+	expected := Expectation{
+		MouseEventsRequireAlt: true,
+		SpecificChangeCount:   1,
+	}
+	if diff := cmp.Diff(expected, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
 func TestDefaultOptionsMouseEventsRequireAlt(t *testing.T) {
 	t.Parallel()
 

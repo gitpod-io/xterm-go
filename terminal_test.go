@@ -18,6 +18,15 @@ func newTestTerminal(cols, rows int) *Terminal {
 	}))
 }
 
+func TestWithMouseEventsRequireAlt(t *testing.T) {
+	t.Parallel()
+
+	term := New(WithMouseEventsRequireAlt(true))
+	if !term.optionsService.Options.MouseEventsRequireAlt {
+		t.Errorf("MouseEventsRequireAlt = %v, want true", term.optionsService.Options.MouseEventsRequireAlt)
+	}
+}
+
 func TestTerminalBasicTextOutput(t *testing.T) {
 	t.Parallel()
 	type Expectation struct {
