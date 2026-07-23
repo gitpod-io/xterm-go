@@ -416,12 +416,12 @@ func (t *Terminal) ScrollToLine(line int) {
 // cursor is on. Ported from xterm.js src/headless/Terminal.ts clear().
 func (t *Terminal) Clear() {
 	buf := t.bufferService.Buffer()
+	buf.ClearAllMarkers()
+
 	if buf.YBase == 0 && buf.Y == 0 {
 		// Nothing to clear.
 		return
 	}
-
-	buf.ClearAllMarkers()
 
 	// Copy the current cursor line to position 0.
 	buf.Lines.Set(0, buf.Lines.Get(buf.YBase+buf.Y))

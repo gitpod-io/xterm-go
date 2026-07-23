@@ -1171,6 +1171,25 @@ func TestTerminalClearEmptyTerminal(t *testing.T) {
 	}
 }
 
+func TestTerminalClearDisposesMarkerAtCursorHome(t *testing.T) {
+	t.Parallel()
+
+	term := New(WithCols(10), WithRows(3), WithScrollback(10))
+	marker := term.RegisterMarker(0)
+	if marker == nil {
+		t.Fatal("RegisterMarker returned nil")
+	}
+
+	term.Clear()
+
+	if !marker.IsDisposed {
+		t.Error("marker should be disposed after Clear()")
+	}
+	if got := len(term.Buffer().Markers); got != 0 {
+		t.Errorf("markers after Clear = %d, want 0", got)
+	}
+}
+
 func TestTerminalClearFiresScrollEvent(t *testing.T) {
 	t.Parallel()
 
