@@ -81,6 +81,50 @@ func TestBufferLineSetCellFromCodepoint(t *testing.T) {
 	}
 }
 
+func TestBufferLineSetCellFromCodepointClearsSparseCaches(t *testing.T) {
+	t.Parallel()
+	bl := NewBufferLine(2, nil, false)
+	bl.Set(0, NewCharData(0, "e\u0301", 1, 0x0301))
+
+	attrs := DefaultAttrData()
+	attrs.Extended = NewExtendedAttrs(0, 42)
+	attrs.UpdateExtended()
+	bl.SetCellFromCodepoint(1, 'B', 1, &attrs)
+
+	plainAttrs := DefaultAttrData()
+	bl.SetCellFromCodepoint(0, 'A', 1, &plainAttrs)
+	bl.SetCellFromCodepoint(1, 'C', 1, &plainAttrs)
+
+	if got := len(bl.combined); got != 0 {
+		t.Fatalf("combined cache length = %d, want 0", got)
+	}
+	if got := len(bl.extendedAttrs); got != 0 {
+		t.Fatalf("extendedAttrs cache length = %d, want 0", got)
+	}
+}
+
+func TestBufferLineSetCellClearsSparseCaches(t *testing.T) {
+	t.Parallel()
+	bl := NewBufferLine(2, nil, false)
+
+	attr := DefaultAttrData()
+	attr.Extended = NewExtendedAttrs(0, 42)
+	attr.UpdateExtended()
+	combined := CellDataFromCharData(NewCharData(0, "e\u0301", 1, 0x0301))
+	combined.AttributeData = attr
+	bl.SetCell(0, combined)
+
+	plain := CellDataFromCharData(NewCharData(0, "B", 1, 'B'))
+	bl.SetCell(0, plain)
+
+	if got := len(bl.combined); got != 0 {
+		t.Fatalf("combined cache length = %d, want 0", got)
+	}
+	if got := len(bl.extendedAttrs); got != 0 {
+		t.Fatalf("extendedAttrs cache length = %d, want 0", got)
+	}
+}
+
 func TestBufferLineAddCodepointToCell(t *testing.T) {
 	t.Parallel()
 	type Expectation struct {
@@ -322,6 +366,41 @@ func TestBufferLineCopyFrom(t *testing.T) {
 	}
 }
 
+func TestBufferLineCopyFromRebuildsSparseCachesFromFlags(t *testing.T) {
+	t.Parallel()
+	src := NewBufferLine(2, nil, true)
+	src.Set(0, NewCharData(0, "e\u0301", 1, 0x0301))
+	src.combined[1] = "stale"
+
+	attr := DefaultAttrData()
+	attr.Extended = NewExtendedAttrs(0, 7)
+	attr.UpdateExtended()
+	src.SetCellFromCodepoint(1, 'B', 1, &attr)
+	src.extendedAttrs[0] = NewExtendedAttrs(0, 99)
+
+	dst := NewBufferLine(2, nil, false)
+	dst.CopyFrom(src)
+
+	if got := len(dst.combined); got != 1 {
+		t.Fatalf("combined cache length = %d, want 1", got)
+	}
+	if got := dst.combined[0]; got != "e\u0301" {
+		t.Fatalf("combined[0] = %q, want e+accent", got)
+	}
+	if _, ok := dst.combined[1]; ok {
+		t.Fatalf("combined[1] copied stale entry")
+	}
+	if got := len(dst.extendedAttrs); got != 1 {
+		t.Fatalf("extendedAttrs cache length = %d, want 1", got)
+	}
+	if _, ok := dst.extendedAttrs[0]; ok {
+		t.Fatalf("extendedAttrs[0] copied stale entry")
+	}
+	if dst.extendedAttrs[1] == nil || dst.extendedAttrs[1].URLID() != 7 {
+		t.Fatalf("extendedAttrs[1] did not copy flagged extended attrs")
+	}
+}
+
 func TestBufferLineClone(t *testing.T) {
 	t.Parallel()
 	type Expectation struct {
@@ -345,6 +424,40 @@ func TestBufferLineClone(t *testing.T) {
 	expected := Expectation{Chars: "ABC", IsWrapped: true, Independent: true}
 	if diff := cmp.Diff(expected, got); diff != "" {
 		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestBufferLineCloneRebuildsSparseCachesFromFlags(t *testing.T) {
+	t.Parallel()
+	orig := NewBufferLine(2, nil, true)
+	orig.Set(0, NewCharData(0, "e\u0301", 1, 0x0301))
+	orig.combined[1] = "stale"
+
+	attr := DefaultAttrData()
+	attr.Extended = NewExtendedAttrs(0, 7)
+	attr.UpdateExtended()
+	orig.SetCellFromCodepoint(1, 'B', 1, &attr)
+	orig.extendedAttrs[0] = NewExtendedAttrs(0, 99)
+
+	clone := orig.Clone()
+
+	if got := len(clone.combined); got != 1 {
+		t.Fatalf("combined cache length = %d, want 1", got)
+	}
+	if got := clone.combined[0]; got != "e\u0301" {
+		t.Fatalf("combined[0] = %q, want e+accent", got)
+	}
+	if _, ok := clone.combined[1]; ok {
+		t.Fatalf("combined[1] copied stale entry")
+	}
+	if got := len(clone.extendedAttrs); got != 1 {
+		t.Fatalf("extendedAttrs cache length = %d, want 1", got)
+	}
+	if _, ok := clone.extendedAttrs[0]; ok {
+		t.Fatalf("extendedAttrs[0] copied stale entry")
+	}
+	if clone.extendedAttrs[1] == nil || clone.extendedAttrs[1].URLID() != 7 {
+		t.Fatalf("extendedAttrs[1] did not copy flagged extended attrs")
 	}
 }
 
@@ -465,6 +578,28 @@ func TestBufferLineCopyCellsFromDoesNotCopyCombinedOutsideRange(t *testing.T) {
 
 	if got := dst.GetString(3); got != "OLD" {
 		t.Fatalf("CopyCellsFrom changed untouched combined cell 3 to %q, want OLD", got)
+	}
+}
+
+func TestBufferLineCopyCellsFromClearsDestinationSparseCaches(t *testing.T) {
+	t.Parallel()
+	src := NewBufferLine(2, nil, false)
+	src.Set(0, NewCharData(0, "A", 1, 'A'))
+
+	dst := NewBufferLine(2, nil, false)
+	dst.Set(0, NewCharData(0, "e\u0301", 1, 0x0301))
+	attr := DefaultAttrData()
+	attr.Extended = NewExtendedAttrs(0, 7)
+	attr.UpdateExtended()
+	dst.SetCellFromCodepoint(1, 'B', 1, &attr)
+
+	dst.CopyCellsFrom(src, 0, 0, 2, false)
+
+	if got := len(dst.combined); got != 0 {
+		t.Fatalf("combined cache length = %d, want 0", got)
+	}
+	if got := len(dst.extendedAttrs); got != 0 {
+		t.Fatalf("extendedAttrs cache length = %d, want 0", got)
 	}
 }
 

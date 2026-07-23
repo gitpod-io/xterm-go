@@ -146,8 +146,10 @@ func (bl *BufferLine) Set(index int, value CharData) {
 		bl.combined[index] = ch
 		bl.data[index*cellSize+cellContent] = ContentIsCombinedMask | (uint32(width) << ContentWidthShift)
 	} else if len(runes) == 1 {
+		delete(bl.combined, index)
 		bl.data[index*cellSize+cellContent] = uint32(runes[0]) | (uint32(width) << ContentWidthShift)
 	} else {
+		delete(bl.combined, index)
 		bl.data[index*cellSize+cellContent] = uint32(width) << ContentWidthShift
 	}
 }
@@ -177,9 +179,13 @@ func (bl *BufferLine) LoadCell(index int, cell *CellData) *CellData {
 func (bl *BufferLine) SetCell(index int, cell *CellData) {
 	if cell.Content&ContentIsCombinedMask != 0 {
 		bl.combined[index] = cell.CombinedData
+	} else {
+		delete(bl.combined, index)
 	}
 	if cell.Bg&BgFlagHasExtended != 0 {
 		bl.extendedAttrs[index] = cell.Extended
+	} else {
+		delete(bl.extendedAttrs, index)
 	}
 	si := index * cellSize
 	bl.data[si+cellContent] = cell.Content
@@ -189,8 +195,11 @@ func (bl *BufferLine) SetCell(index int, cell *CellData) {
 
 // SetCellFromCodepoint sets a cell from a codepoint, width, and attribute data.
 func (bl *BufferLine) SetCellFromCodepoint(index int, codePoint uint32, width int, attrs *AttributeData) {
+	delete(bl.combined, index)
 	if attrs.Bg&BgFlagHasExtended != 0 {
 		bl.extendedAttrs[index] = attrs.Extended
+	} else {
+		delete(bl.extendedAttrs, index)
 	}
 	si := index * cellSize
 	bl.data[si+cellContent] = codePoint | (uint32(width) << ContentWidthShift)
@@ -378,14 +387,7 @@ func (bl *BufferLine) CopyFrom(line *BufferLine) {
 	}
 	copy(bl.data, line.data)
 	bl.Len = line.Len
-	bl.combined = make(map[int]string, len(line.combined))
-	for k, v := range line.combined {
-		bl.combined[k] = v
-	}
-	bl.extendedAttrs = make(map[int]*ExtendedAttrs, len(line.extendedAttrs))
-	for k, v := range line.extendedAttrs {
-		bl.extendedAttrs[k] = v
-	}
+	bl.copySparseMapsFrom(line)
 	bl.IsWrapped = line.IsWrapped
 }
 
@@ -399,12 +401,7 @@ func (bl *BufferLine) Clone() *BufferLine {
 		IsWrapped:     bl.IsWrapped,
 	}
 	copy(newLine.data, bl.data)
-	for k, v := range bl.combined {
-		newLine.combined[k] = v
-	}
-	for k, v := range bl.extendedAttrs {
-		newLine.extendedAttrs[k] = v
-	}
+	newLine.copySparseMapsFrom(bl)
 	return newLine
 }
 
@@ -457,9 +454,27 @@ func (bl *BufferLine) CopyCellsFrom(src *BufferLine, srcCol, destCol, length int
 func (bl *BufferLine) copyCellMapsFrom(src *BufferLine, srcCol, destCol int) {
 	if srcData := src.data; srcData[srcCol*cellSize+cellContent]&ContentIsCombinedMask != 0 {
 		bl.combined[destCol] = src.combined[srcCol]
+	} else {
+		delete(bl.combined, destCol)
 	}
 	if src.data[srcCol*cellSize+cellBg]&BgFlagHasExtended != 0 {
 		bl.extendedAttrs[destCol] = src.extendedAttrs[srcCol]
+	} else {
+		delete(bl.extendedAttrs, destCol)
+	}
+}
+
+func (bl *BufferLine) copySparseMapsFrom(src *BufferLine) {
+	bl.combined = make(map[int]string, len(src.combined))
+	bl.extendedAttrs = make(map[int]*ExtendedAttrs, len(src.extendedAttrs))
+	for i := range src.Len {
+		si := i * cellSize
+		if src.data[si+cellContent]&ContentIsCombinedMask != 0 {
+			bl.combined[i] = src.combined[i]
+		}
+		if src.data[si+cellBg]&BgFlagHasExtended != 0 {
+			bl.extendedAttrs[i] = src.extendedAttrs[i]
+		}
 	}
 }
 
