@@ -157,6 +157,49 @@ func TestTerminalScrolling(t *testing.T) {
 	}
 }
 
+func TestTerminalWindowsPtyBackendOnlyResizeKeepsScrollback(t *testing.T) {
+	t.Parallel()
+
+	term := New(
+		WithCols(5),
+		WithRows(2),
+		WithScrollback(10),
+		WithWindowsPty(WindowsPty{Backend: "winpty"}),
+	)
+	term.WriteString("one\ntwo\nthree")
+
+	beforeYBase := term.Buffer().YBase
+	beforeY := term.Buffer().Y
+	beforeLen := term.Buffer().Lines.Length()
+	if beforeYBase == 0 {
+		t.Fatalf("setup YBase = 0, want scrollback before resize")
+	}
+
+	term.Resize(5, 3)
+
+	got := struct {
+		YBase     int
+		Y         int
+		LineCount int
+	}{
+		YBase:     term.Buffer().YBase,
+		Y:         term.Buffer().Y,
+		LineCount: term.Buffer().Lines.Length(),
+	}
+	want := struct {
+		YBase     int
+		Y         int
+		LineCount int
+	}{
+		YBase:     beforeYBase,
+		Y:         beforeY,
+		LineCount: beforeLen + 1,
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestTerminalColorsSGR(t *testing.T) {
 	t.Parallel()
 	type Expectation struct {

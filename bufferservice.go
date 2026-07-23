@@ -49,9 +49,9 @@ func NewBufferService(opts *OptionsService) *BufferService {
 		Cols: cols,
 		Rows: rows,
 	}
-	bs.Buffers = newBufferSet(cols, rows, opts.Options.Scrollback, opts.Options.TabStopWidth, opts.Options.WindowsPty.windowsPtyMode())
+	bs.Buffers = newBufferSet(cols, rows, opts.Options.Scrollback, opts.Options.TabStopWidth, opts.Options.WindowsPty.hasWindowsPtyOptions())
 	bs.windowsPtyOptionDisposable = opts.OnSpecificOptionChange("windowsPty", func() {
-		bs.Buffers.SetWindowsPtyMode(opts.Options.WindowsPty.windowsPtyMode())
+		bs.Buffers.SetWindowsPtyMode(opts.Options.WindowsPty.hasWindowsPtyOptions())
 	})
 
 	// When the active buffer changes, fire a scroll event with the new ydisp.

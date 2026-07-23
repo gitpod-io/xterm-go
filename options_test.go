@@ -145,6 +145,48 @@ func TestWindowsPtyMode(t *testing.T) {
 	}
 }
 
+func TestWindowsPtyHasWindowsPtyOptions(t *testing.T) {
+	t.Parallel()
+
+	type TestCase struct {
+		Name     string
+		Value    WindowsPty
+		Expected bool
+	}
+	tests := []TestCase{
+		{
+			Name:     "unset",
+			Value:    WindowsPty{},
+			Expected: false,
+		},
+		{
+			Name:     "backend only",
+			Value:    WindowsPty{Backend: "winpty"},
+			Expected: true,
+		},
+		{
+			Name:     "build number only",
+			Value:    WindowsPty{BuildNo: 21376},
+			Expected: true,
+		},
+		{
+			Name:     "backend and build number",
+			Value:    WindowsPty{Backend: "conpty", BuildNo: 21375},
+			Expected: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tc.Value.hasWindowsPtyOptions()
+			if got != tc.Expected {
+				t.Errorf("hasWindowsPtyOptions() = %v, want %v", got, tc.Expected)
+			}
+		})
+	}
+}
+
 func TestOptionsServiceSetOption(t *testing.T) {
 	t.Parallel()
 

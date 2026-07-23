@@ -41,6 +41,10 @@ func (w WindowsPty) windowsPtyMode() bool {
 	return w.Backend == "conpty" && w.BuildNo != 0 && w.BuildNo < 21376
 }
 
+func (w WindowsPty) hasWindowsPtyOptions() bool {
+	return w.Backend != "" || w.BuildNo != 0
+}
+
 // WindowOptions controls which CSI t (window manipulation) sub-commands are
 // permitted. All fields default to false (denied). Mirrors upstream xterm.js
 // IWindowOptions interface.
