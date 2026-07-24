@@ -423,11 +423,6 @@ func (t *Terminal) Clear() {
 	buf := t.bufferService.Buffer()
 	buf.ClearAllMarkers()
 
-	if buf.YBase == 0 && buf.Y == 0 {
-		// Nothing to clear.
-		return
-	}
-
 	// Copy the current cursor line to position 0.
 	buf.Lines.Set(0, buf.Lines.Get(buf.YBase+buf.Y))
 	buf.Lines.SetLength(1)

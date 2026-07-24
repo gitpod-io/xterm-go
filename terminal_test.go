@@ -1211,6 +1211,35 @@ func TestTerminalClearMovesCurrentLineToTop(t *testing.T) {
 	}
 }
 
+func TestTerminalClearAtCursorHome(t *testing.T) {
+	t.Parallel()
+
+	term := New(WithCols(10), WithRows(3), WithScrollback(10))
+
+	// Write three lines, then home the cursor without scrolling so that
+	// YBase == 0 && Y == 0 while rows below the cursor still hold content.
+	term.WriteString("line0\r\nline1\r\nline2\x1b[H")
+
+	buf := term.Buffer()
+	if buf.YBase != 0 || buf.Y != 0 {
+		t.Fatalf("precondition: YBase=%d Y=%d, want 0/0", buf.YBase, buf.Y)
+	}
+
+	term.Clear()
+
+	buf = term.Buffer()
+	for row := 1; row < 3; row++ {
+		line := buf.Lines.Get(row)
+		if line == nil {
+			t.Fatalf("line %d is nil", row)
+		}
+		got := strings.TrimRight(line.TranslateToString(true, 0, -1), " ")
+		if got != "" {
+			t.Errorf("row %d = %q, want empty after Clear()", row, got)
+		}
+	}
+}
+
 func TestTerminalClearEmptyTerminal(t *testing.T) {
 	t.Parallel()
 
