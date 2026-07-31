@@ -561,6 +561,39 @@ func TestTerminalDispose(t *testing.T) {
 	term := newTestTerminal(80, 24)
 	term.WriteString("Hello")
 	term.Dispose() // should not panic
+	term.Dispose() // should be idempotent
+}
+
+func TestTerminalWriteStringAfterDispose(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	term.WriteString("before")
+	term.Dispose()
+
+	term.WriteString("after")
+
+	if got := term.GetLine(0); got != "before" {
+		t.Errorf("GetLine(0) = %q after WriteString on disposed terminal, want %q", got, "before")
+	}
+}
+
+func TestTerminalWriteAfterDispose(t *testing.T) {
+	t.Parallel()
+	term := newTestTerminal(80, 24)
+	term.WriteString("before")
+	term.Dispose()
+
+	n, err := term.Write([]byte("after"))
+
+	if err != nil {
+		t.Fatalf("Write returned unexpected error: %v", err)
+	}
+	if n != len("after") {
+		t.Errorf("Write returned n=%d, want %d", n, len("after"))
+	}
+	if got := term.GetLine(0); got != "before" {
+		t.Errorf("GetLine(0) = %q after Write on disposed terminal, want %q", got, "before")
+	}
 }
 
 func TestTerminalEraseDisplay(t *testing.T) {

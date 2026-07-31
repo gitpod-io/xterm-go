@@ -58,6 +58,7 @@ type Terminal struct {
 	oscLinkService    *OscLinkService
 	unicodeService    *UnicodeService
 	inputHandler      *InputHandler
+	isDisposed        bool
 
 	// Public event emitters (forwarded from sub-components).
 	OnBellEmitter                        EventEmitter[struct{}]
@@ -127,6 +128,9 @@ func New(opts ...Option) *Terminal {
 
 // Write writes data to the terminal, implementing io.Writer.
 func (t *Terminal) Write(p []byte) (n int, err error) {
+	if t.isDisposed {
+		return len(p), nil
+	}
 	t.inputHandler.Parse(p)
 	t.OnWriteParsedEmitter.Fire(struct{}{})
 	return len(p), nil
@@ -134,6 +138,9 @@ func (t *Terminal) Write(p []byte) (n int, err error) {
 
 // WriteString writes a string to the terminal.
 func (t *Terminal) WriteString(s string) {
+	if t.isDisposed {
+		return
+	}
 	t.inputHandler.ParseString(s)
 	t.OnWriteParsedEmitter.Fire(struct{}{})
 }
@@ -456,6 +463,10 @@ func (t *Terminal) Scrollback() int { return t.optionsService.Options.Scrollback
 
 // Dispose cleans up all resources.
 func (t *Terminal) Dispose() {
+	if t.isDisposed {
+		return
+	}
+	t.isDisposed = true
 	t.inputHandler.Dispose()
 	t.coreService.Dispose()
 	t.mouseStateService.Dispose()
