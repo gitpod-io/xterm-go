@@ -218,6 +218,9 @@ func (h *InputHandler) eraseInDisplayInternal(params *Params, respectProtect boo
 			buf.YBase = max(buf.YBase-scrollBackSize, 0)
 			buf.YDisp = max(buf.YDisp-scrollBackSize, 0)
 		}
+		if buf == h.bufferService.Buffers.Normal() {
+			h.bufferService.IsUserScrolling = false
+		}
 	}
 	return true
 }

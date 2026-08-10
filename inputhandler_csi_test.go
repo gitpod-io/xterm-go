@@ -164,6 +164,48 @@ func TestEraseInDisplay(t *testing.T) {
 	}
 }
 
+func TestEraseInDisplayScrollbackResetsUserScrolling(t *testing.T) {
+	t.Parallel()
+	h := newTestInputHandler(10, 5)
+	for range 20 {
+		h.ParseString("old\r\n")
+	}
+	h.bufferService.ScrollLines(-5, false)
+	if !h.bufferService.IsUserScrolling {
+		t.Fatal("expected user scrolling before ED3")
+	}
+
+	h.ParseString("\x1b[3J")
+	if h.bufferService.IsUserScrolling {
+		t.Fatal("expected ED3 on the normal buffer to reset user scrolling")
+	}
+
+	for range 20 {
+		h.ParseString("new\r\n")
+	}
+	buf := h.activeBuffer()
+	if buf.YDisp != buf.YBase {
+		t.Fatalf("YDisp=%d YBase=%d, want viewport to follow bottom", buf.YDisp, buf.YBase)
+	}
+}
+
+func TestEraseInDisplayScrollbackOnAltPreservesUserScrolling(t *testing.T) {
+	t.Parallel()
+	h := newTestInputHandler(10, 5)
+	for range 20 {
+		h.ParseString("old\r\n")
+	}
+	h.bufferService.ScrollLines(-5, false)
+	if !h.bufferService.IsUserScrolling {
+		t.Fatal("expected user scrolling before activating the alternate buffer")
+	}
+
+	h.ParseString("\x1b[?1049h\x1b[3J")
+	if !h.bufferService.IsUserScrolling {
+		t.Fatal("expected ED3 on the alternate buffer to preserve normal-buffer user scrolling")
+	}
+}
+
 func TestEraseInLine(t *testing.T) {
 	t.Parallel()
 	type Expectation struct {
@@ -2096,4 +2138,3 @@ func TestVtExtensions_KittyKeyboardGating(t *testing.T) {
 		}
 	})
 }
-
