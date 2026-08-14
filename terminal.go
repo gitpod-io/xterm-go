@@ -60,6 +60,9 @@ type Terminal struct {
 	inputHandler      *InputHandler
 	isDisposed        bool
 
+	windowsWrappingHeuristics  MutableDisposable
+	windowsPtyOptionDisposable Disposable
+
 	// Public event emitters (forwarded from sub-components).
 	OnBellEmitter                        EventEmitter[struct{}]
 	OnTitleChangeEmitter                 EventEmitter[string]
@@ -123,7 +126,35 @@ func New(opts ...Option) *Terminal {
 	// Handle reset requests from input handler (ESC c).
 	ih.OnRequestResetEmitter.Event(func(struct{}) { t.Reset() })
 
+	// Legacy ConPTY versions do not report wrapped lines, so infer them from
+	// line feeds and cursor-position sequences while the affected mode is active.
+	t.windowsPtyOptionDisposable = optsSvc.OnSpecificOptionChange("windowsPty", t.handleWindowsPtyOptionChange)
+	t.handleWindowsPtyOptionChange()
+
 	return t
+}
+
+func (t *Terminal) handleWindowsPtyOptionChange() {
+	if t.optionsService.Options.WindowsPty.windowsPtyMode() {
+		t.enableWindowsWrappingHeuristics()
+		return
+	}
+	t.windowsWrappingHeuristics.Clear()
+}
+
+func (t *Terminal) enableWindowsWrappingHeuristics() {
+	if t.windowsWrappingHeuristics.Value() != nil {
+		return
+	}
+
+	lineFeedDisposable := t.OnLineFeed(func() {
+		updateWindowsModeWrappedState(t.bufferService)
+	})
+	cursorPositionDisposable := t.RegisterCsiHandler(FunctionIdentifier{Final: 'H'}, func(*Params) bool {
+		updateWindowsModeWrappedState(t.bufferService)
+		return false
+	})
+	t.windowsWrappingHeuristics.SetValue(CombinedDisposable(lineFeedDisposable, cursorPositionDisposable))
 }
 
 // Write writes data to the terminal, implementing io.Writer.
@@ -467,6 +498,10 @@ func (t *Terminal) Dispose() {
 		return
 	}
 	t.isDisposed = true
+	if t.windowsPtyOptionDisposable != nil {
+		t.windowsPtyOptionDisposable.Dispose()
+	}
+	t.windowsWrappingHeuristics.Dispose()
 	t.inputHandler.Dispose()
 	t.coreService.Dispose()
 	t.mouseStateService.Dispose()

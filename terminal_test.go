@@ -507,6 +507,104 @@ func TestTerminalLineFeedEvent(t *testing.T) {
 	}
 }
 
+func TestTerminalLegacyConPTYLineFeedWrapping(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		Name        string
+		WindowsPty  WindowsPty
+		Input       string
+		WantWrapped bool
+	}{
+		{
+			Name:        "content in last cell marks line wrapped",
+			WindowsPty:  WindowsPty{Backend: "conpty", BuildNo: 19000},
+			Input:       "abcde\r\n",
+			WantWrapped: true,
+		},
+		{
+			Name:        "whitespace in last cell does not mark line wrapped",
+			WindowsPty:  WindowsPty{Backend: "conpty", BuildNo: 19000},
+			Input:       "abcd \r\n",
+			WantWrapped: false,
+		},
+		{
+			Name:        "null last cell does not mark line wrapped",
+			WindowsPty:  WindowsPty{Backend: "conpty", BuildNo: 19000},
+			Input:       "abcd\r\n",
+			WantWrapped: false,
+		},
+		{
+			Name:        "modern conpty build does not enable heuristic",
+			WindowsPty:  WindowsPty{Backend: "conpty", BuildNo: 21376},
+			Input:       "abcde\r\n",
+			WantWrapped: false,
+		},
+		{
+			Name:        "missing build number does not enable heuristic",
+			WindowsPty:  WindowsPty{Backend: "conpty"},
+			Input:       "abcde\r\n",
+			WantWrapped: false,
+		},
+		{
+			Name:        "build number only does not enable heuristic",
+			WindowsPty:  WindowsPty{BuildNo: 19000},
+			Input:       "abcde\r\n",
+			WantWrapped: false,
+		},
+		{
+			Name:        "non-conpty backend does not enable heuristic",
+			WindowsPty:  WindowsPty{Backend: "winpty", BuildNo: 19000},
+			Input:       "abcde\r\n",
+			WantWrapped: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			term := New(WithCols(5), WithRows(3), WithWindowsPty(tc.WindowsPty))
+			term.WriteString(tc.Input)
+
+			buf := term.Buffer()
+			line := buf.Lines.Get(buf.YBase + buf.Y)
+			if line == nil {
+				t.Fatal("current line is nil")
+			}
+			if line.IsWrapped != tc.WantWrapped {
+				t.Errorf("IsWrapped = %v, want %v", line.IsWrapped, tc.WantWrapped)
+			}
+		})
+	}
+}
+
+func TestTerminalLegacyConPTYWrappingTracksOptionChanges(t *testing.T) {
+	t.Parallel()
+
+	term := New(WithCols(5), WithRows(3))
+	term.optionsService.SetOption("windowsPty", WindowsPty{Backend: "conpty", BuildNo: 19000})
+	term.WriteString("abcde\r\n")
+
+	buf := term.Buffer()
+	line := buf.Lines.Get(buf.YBase + buf.Y)
+	if line == nil || !line.IsWrapped {
+		t.Fatal("enabling legacy ConPTY mode did not enable wrapping heuristic")
+	}
+
+	line.IsWrapped = false
+	term.WriteString("\x1b[1;1H")
+	if !line.IsWrapped {
+		t.Fatal("CUP did not update wrapped state in legacy ConPTY mode")
+	}
+
+	term.optionsService.SetOption("windowsPty", WindowsPty{Backend: "conpty", BuildNo: 21376})
+	line.IsWrapped = false
+	term.WriteString("\x1b[1;1H")
+	if line.IsWrapped {
+		t.Fatal("CUP updated wrapped state after legacy ConPTY mode was disabled")
+	}
+}
+
 func TestTerminalResizeClampMinimum(t *testing.T) {
 	t.Parallel()
 	term := newTestTerminal(80, 24)
