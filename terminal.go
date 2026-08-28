@@ -259,6 +259,12 @@ func (t *Terminal) TriggerMouseEvent(ev CoreMouseEvent) bool {
 	if dm.MouseEncoding != "" {
 		t.mouseStateService.SetActiveEncoding(dm.MouseEncoding)
 	}
+	if t.optionsService.Options.MouseEventsRequireAlt && ev.Button != MouseButtonWheel {
+		if !ev.Alt {
+			return false
+		}
+		ev.Alt = false
+	}
 
 	encoded, ok := t.mouseStateService.TriggerMouseEvent(ev)
 	if !ok {

@@ -586,6 +586,62 @@ func TestTerminalTriggerMouseEventVT200(t *testing.T) {
 	}
 }
 
+func TestTerminalTriggerMouseEventRequiresAlt(t *testing.T) {
+	t.Parallel()
+
+	type Expectation struct {
+		Accepted   bool
+		DataEvents []string
+	}
+	tests := []struct {
+		Name     string
+		Event    CoreMouseEvent
+		Expected Expectation
+	}{
+		{
+			Name: "non-wheel event without Alt is rejected",
+			Event: CoreMouseEvent{
+				Button: MouseButtonLeft, Action: MouseActionDown, Col: 1, Row: 1,
+			},
+			Expected: Expectation{Accepted: false},
+		},
+		{
+			Name: "non-wheel event with Alt is accepted without modifier",
+			Event: CoreMouseEvent{
+				Button: MouseButtonLeft, Action: MouseActionDown, Col: 1, Row: 1, Alt: true,
+			},
+			Expected: Expectation{Accepted: true, DataEvents: []string{"\x1b[M !!"}},
+		},
+		{
+			Name: "wheel event without Alt is accepted",
+			Event: CoreMouseEvent{
+				Button: MouseButtonWheel, Action: MouseActionDown, Col: 1, Row: 1,
+			},
+			Expected: Expectation{Accepted: true, DataEvents: []string{"\x1b[Ma!!"}},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			term := New(WithCols(80), WithRows(24), WithMouseEventsRequireAlt(true))
+			defer term.Dispose()
+
+			var dataEvents []string
+			term.OnData(func(s string) { dataEvents = append(dataEvents, s) })
+			term.WriteString("\x1b[?1000h")
+
+			got := Expectation{
+				Accepted:   term.TriggerMouseEvent(tc.Event),
+				DataEvents: dataEvents,
+			}
+			if diff := cmp.Diff(tc.Expected, got); diff != "" {
+				t.Errorf("(-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestTerminalTriggerMouseEventSGR(t *testing.T) {
 	t.Parallel()
 
