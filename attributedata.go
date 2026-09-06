@@ -2,10 +2,12 @@ package xterm
 
 // Ported from xterm.js src/common/buffer/AttributeData.ts.
 
-// ExtendedAttrs holds extended cell attributes (underline style, underline color, URL ID).
+// ExtendedAttrs holds extended cell attributes (underline style, underline color, URL ID,
+// and an arbitrary payload).
 type ExtendedAttrs struct {
-	ext   uint32
-	urlID int
+	ext     uint32
+	urlID   int
+	Payload any
 }
 
 // NewExtendedAttrs creates an ExtendedAttrs with the given raw ext value and URL ID.
@@ -77,14 +79,14 @@ func (e *ExtendedAttrs) SetUnderlineVariantOffset(v int) {
 	e.ext |= (uint32(v) << 29) & ExtFlagVariantOffset
 }
 
-// Clone returns a deep copy.
+// Clone returns a copy.
 func (e *ExtendedAttrs) Clone() *ExtendedAttrs {
-	return &ExtendedAttrs{ext: e.ext, urlID: e.urlID}
+	return &ExtendedAttrs{ext: e.ext, urlID: e.urlID, Payload: e.Payload}
 }
 
 // IsEmpty returns true if the extended attrs carry no meaningful data.
 func (e *ExtendedAttrs) IsEmpty() bool {
-	return e.UnderlineStyle() == UnderlineStyleNone && e.urlID == 0
+	return e.UnderlineStyle() == UnderlineStyleNone && e.urlID == 0 && e.Payload == nil
 }
 
 // AttributeData holds the fg, bg, and extended attributes for a cell.

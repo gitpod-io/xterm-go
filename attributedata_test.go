@@ -328,18 +328,21 @@ func TestExtendedAttrsIsEmpty(t *testing.T) {
 		Name     string
 		Style    UnderlineStyle
 		URLID    int
+		Payload  any
 		Expected Expectation
 	}
 	tests := []TestCase{
-		{"default", UnderlineStyleNone, 0, Expectation{true}},
-		{"with style", UnderlineStyleSingle, 0, Expectation{false}},
-		{"with url", UnderlineStyleNone, 1, Expectation{false}},
+		{"default", UnderlineStyleNone, 0, nil, Expectation{true}},
+		{"with style", UnderlineStyleSingle, 0, nil, Expectation{false}},
+		{"with url", UnderlineStyleNone, 1, nil, Expectation{false}},
+		{"with payload", UnderlineStyleNone, 0, struct{}{}, Expectation{false}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
 			e := NewExtendedAttrs(0, 0)
 			e.SetUnderlineStyle(tc.Style)
 			e.SetURLID(tc.URLID)
+			e.Payload = tc.Payload
 			got := Expectation{IsEmpty: e.IsEmpty()}
 			if diff := cmp.Diff(tc.Expected, got); diff != "" {
 				t.Errorf("(-want +got):\n%s", diff)
@@ -355,9 +358,11 @@ func TestExtendedAttrsClone(t *testing.T) {
 		CloneURLID int
 	}
 
+	payload := &struct{ ID int }{ID: 42}
 	e := NewExtendedAttrs(0, 0)
 	e.SetUnderlineStyle(UnderlineStyleDouble)
 	e.SetURLID(5)
+	e.Payload = payload
 	c := e.Clone()
 	c.SetURLID(0)
 	c.SetUnderlineStyle(UnderlineStyleNone)
@@ -375,6 +380,9 @@ func TestExtendedAttrsClone(t *testing.T) {
 	}
 	if diff := cmp.Diff(expected, got); diff != "" {
 		t.Errorf("(-want +got):\n%s", diff)
+	}
+	if c.Payload != payload {
+		t.Errorf("clone payload = %v, want original payload %v", c.Payload, payload)
 	}
 }
 
